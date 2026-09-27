@@ -603,8 +603,16 @@ async function loadSettings() {
 
 function resetChildPages() { state.dash = null; state.loaded = {}; }
 
+// While syncing, the page underneath is blocked: inert stops clicks, taps and keyboard focus.
+function blockApp(on) {
+  $("sync-overlay").hidden = !on;
+  for (const part of document.querySelectorAll("header.topbar, main")) part.inert = on;
+  document.body.setAttribute("aria-busy", on ? "true" : "false");
+}
+
 async function syncNow() {
   const b = $("sync"); busy(b, true, "Syncing…"); say("");
+  blockApp(true);
   try {
     await api("/api/sync", { method: "POST" });
     state.me = await api("/api/me");
@@ -613,7 +621,7 @@ async function syncNow() {
     api(childUrl("/alerts")).then(updateBadge).catch(() => {});
   } catch (e) {
     say("Sync failed: " + e.message, "bad");
-  } finally { busy(b, false); }
+  } finally { blockApp(false); busy(b, false); }
 }
 
 function wire() {
