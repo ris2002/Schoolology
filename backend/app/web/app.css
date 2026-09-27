@@ -1,0 +1,57 @@
+/* Parent app shell: top bar, section tabs, AI blocks, alerts, chat. */
+.topbar { position: sticky; top: 0; z-index: 10; background: var(--card); border-bottom: 1px solid var(--line); }
+.topbar-inner { max-width: 1040px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.child-name { font-weight: 600; }
+button.small { padding: 6px 12px; font-size: 14px; }
+.tabs-nav { max-width: 1040px; margin: 0 auto; padding: 0 12px; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tabs-nav::-webkit-scrollbar { display: none; }
+.tabs-nav a { padding: 10px 12px; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; font-size: 14.5px; }
+.tabs-nav a[aria-current=page] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.badge { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 12px; line-height: 18px; text-align: center; }
+.spacer { height: 16px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.cause-label { font-size: 18px; font-weight: 600; }
+
+/* A block of AI-written text, or the note that explains why there is none. */
+.ai { border-left: 3px solid var(--accent); background: var(--chip); border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 10px 0; }
+.ai-label { display: block; font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.ai p { white-space: pre-wrap; margin: 0; }
+.ai.missing { border-left-color: var(--line); color: var(--muted); font-size: 13.5px; }
+
+.alert-list { list-style: none; margin: 0; padding: 0; }
+.alert-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.alert-list li:last-child { border-bottom: none; }
+.alert-list .dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 7px; background: var(--accent); }
+.alert-list li.read .dot { background: transparent; }
+.alert-list li.read .alert-text { color: var(--muted); }
+.alert-meta { font-size: 13px; color: var(--muted); }
+
+.week-text { white-space: pre-wrap; }
+details { border-top: 1px solid var(--line); padding: 8px 0; }
+details summary { cursor: pointer; }
+
+.topic { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.topic:last-child { border-bottom: none; }
+.topic-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.example { font-size: 14px; padding: 6px 0 6px 12px; border-left: 2px solid var(--line); margin: 6px 0; }
+
+.chat-log { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; padding: 8px 0; }
+.msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; }
+.msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-text); border-bottom-right-radius: 4px; }
+.msg.assistant { align-self: flex-start; background: var(--chip); border-bottom-left-radius: 4px; }
+.msg.error { align-self: flex-start; background: var(--bad-bg); color: var(--bad); }
+.msg .sources { display: block; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.chips button { border-radius: 999px; font-size: 13.5px; padding: 6px 12px; }
+.chat-form { display: flex; gap: 8px; }
+.chat-form input { flex: 1; min-width: 0; }
+.key-row { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.key-row:last-child { border-bottom: none; }
+.key-row form { display: flex; gap: 8px; grid-column: 1 / -1; }
+.key-row input { flex: 1; min-width: 0; }
+@media (max-width: 720px) {
+  .msg { max-width: 95%; }
+  .topbar-right .child-name { display: none; }
+}
