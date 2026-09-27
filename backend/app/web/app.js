@@ -3,7 +3,8 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const PAGES = ["overview", "alerts", "week", "topics", "papers", "advice", "ask", "settings"];
+const PAGES = ["ask", "overview", "alerts", "week", "topics", "papers", "advice", "settings"];
+const DEFAULT_PAGE = "ask";
 const CAUSES = {
   understanding: "Understanding", effort: "Effort", mixed: "Effort and understanding",
   broad_understanding: "Broad understanding", outside_school: "Something outside school", on_track: "On track",
@@ -98,7 +99,7 @@ function renderShell() {
 
 function route() {
   const [page, param] = location.hash.replace(/^#\/?/, "").split("/");
-  return { page: PAGES.includes(page) ? page : "overview", param: param || null };
+  return { page: PAGES.includes(page) ? page : DEFAULT_PAGE, param: param || null };
 }
 const currentPage = () => route().page;
 

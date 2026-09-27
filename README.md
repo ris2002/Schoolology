@@ -5,7 +5,7 @@ An AI assistant that turns a child's Schoology data into clear answers and advic
 This repository is the **backend** (Python, FastAPI, Supabase Postgres). It serves a JSON API plus the web app:
 
 - `/` sign-in (district dropdown, demo, developer sign-in when enabled)
-- `/dashboard` the parent app, with sections Overview, Alerts, This week, Topics, Papers, Advice, Ask and Settings
+- `/dashboard` the parent app. It opens on **Ask**, followed by Overview, Alerts, This week, Topics, Papers, Advice and Settings
 - `/admin` the admin panel
 
 Each section shows the code-calculated facts immediately. Where an AI feature adds text (alert lines, weekly summary, topic labels, cause and gap explanations, chat answers), it appears in a marked "AI explanation" block. Until that feature is implemented or an AI key is set, a short note says why instead, so the app works at every stage of the AI build.
