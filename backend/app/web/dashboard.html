@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Parent Insight</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/styles.css">
+<style>
+  header.card { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .profile p { margin: 2px 0; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cause-label { font-size: 18px; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header class="card">
+    <div class="profile">
+      <h1 id="name">…</h1>
+      <p class="muted" id="profile-line"></p>
+      <p><span id="connection" class="chip"></span> <span class="hint" id="synced"></span></p>
+    </div>
+    <div class="actions">
+      <button id="sync" class="primary">Sync now</button>
+      <button id="logout">Sign out</button>
+    </div>
+  </header>
+
+  <div id="reconnect" class="banner bad" hidden>
+    <span id="reconnect-text"></span> <a href="/">Sign in with Schoology again</a>.
+  </div>
+  <div id="message" class="banner" role="status" hidden></div>
+
+  <nav class="tabs" id="children" aria-label="Children"></nav>
+  <p id="no-children" class="card empty" hidden>No children are linked to this Schoology account.</p>
+
+  <div id="child-view" hidden>
+    <div class="tiles">
+      <div class="tile"><span class="hint">Likely cause</span><b id="tile-cause">–</b></div>
+      <div class="tile"><span class="hint">Missing work</span><b id="tile-missing">–</b></div>
+      <div class="tile"><span class="hint">Handed in late</span><b id="tile-late">–</b></div>
+      <div class="tile"><span class="hint">Due in 7 days</span><b id="tile-upcoming">–</b></div>
+    </div>
+
+    <section class="card">
+      <h2>Courses</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Course</th><th class="num">Average</th><th class="num">7 days</th><th class="num">14 days</th>
+          <th class="num">Missing</th><th class="num">Late</th><th class="num">Awaiting grade</th></tr></thead>
+        <tbody id="courses"></tbody>
+      </table></div>
+    </section>
+
+    <div class="grid2">
+      <section class="card">
+        <h2>Effort or understanding</h2>
+        <p class="cause-label" id="cause"></p>
+        <p id="suggestion"></p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Course</th><th>Looks like</th><th class="num">Missing or late</th><th class="num">Done work avg</th><th class="num">Test avg</th></tr></thead>
+          <tbody id="cause-courses"></tbody>
+        </table></div>
+        <p class="hint">Picked by fixed rules from the numbers above; a possible reason, not a diagnosis.</p>
+      </section>
+
+      <section class="card">
+        <h2>Homework vs tests</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Course</th><th class="num">Homework</th><th class="num">Tests</th><th class="num">Gap</th></tr></thead>
+          <tbody id="gap"></tbody>
+        </table></div>
+        <p class="hint" id="gap-hint"></p>
+      </section>
+    </div>
+    <div style="height:16px"></div>
+
+    <div class="grid2">
+      <section class="card">
+        <h2>Missing work</h2>
+        <ul class="list" id="missing"></ul>
+      </section>
+      <section class="card">
+        <h2>Due in the next 7 days</h2>
+        <ul class="list" id="upcoming"></ul>
+      </section>
+    </div>
+    <div style="height:16px"></div>
+
+    <section class="card">
+      <h2>Weak topics</h2>
+      <div id="weak"></div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <h2>All assignments</h2>
+        <div class="filters">
+          <select id="filter-course" aria-label="Course"><option value="">All courses</option></select>
+          <select id="filter-status" aria-label="Status">
+            <option value="">Any status</option><option value="graded">Graded</option><option value="missing">Missing</option>
+            <option value="late">Late</option><option value="awaiting_grade">Awaiting grade</option>
+            <option value="upcoming">Upcoming</option><option value="excused">Excused</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Assignment</th><th>Course</th><th>Category</th><th>Due</th><th class="num">Score</th><th>Status</th><th>Teacher comment</th></tr></thead>
+        <tbody id="assignments"></tbody>
+      </table></div>
+      <p class="hint" id="assignment-count"></p>
+    </section>
+
+    <section class="card">
+      <h2>Grading categories</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Course</th><th>Category</th><th>Counted as</th><th class="num">Weight</th></tr></thead>
+        <tbody id="categories"></tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const CAUSES = {
+  understanding: "Understanding", effort: "Effort", mixed: "Effort and understanding",
+  broad_understanding: "Broad understanding", outside_school: "Something outside school", on_track: "On track",
+};
+const STATUS = { graded: "Graded", missing: "Missing", awaiting_grade: "Awaiting grade", upcoming: "Upcoming", excused: "Excused" };
+let me = null, childId = null, dash = null;
+
+function el(tag, attrs = {}, children = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "text") n.textContent = v; else if (k === "class") n.className = v; else n.setAttribute(k, v);
+  }
+  for (const c of children) n.append(c);
+  return n;
+}
+const td = (text, cls) => el("td", { text: text ?? "–", ...(cls ? { class: cls } : {}) });
+const num = (v, suffix = "") => (v === null || v === undefined ? "–" : `${v}${suffix}`);
+const date = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "–");
+const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "never");
+function change(v) {
+  if (v === null || v === undefined) return td("–", "num");
+  return td((v > 0 ? "+" : "") + v, "num " + (v < 0 ? "down" : v > 0 ? "up" : ""));
+}
+function empty(tbody, cols, text) { tbody.replaceChildren(el("tr", {}, [el("td", { colspan: cols, class: "empty", text })])); }
+function say(text, kind = "warn") { const m = $("message"); m.textContent = text; m.className = "banner " + kind; m.hidden = !text; }
+
+async function api(path, options) {
+  const r = await fetch(path, options);
+  if (r.status === 401 && path === "/api/me") { location.replace("/"); throw new Error("signed out"); }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
+function renderProfile() {
+  const u = me.user, s = me.schoology;
+  $("name").textContent = u.name;
+  $("profile-line").textContent = u.is_demo ? "Demo account with sample data"
+    : [u.email, u.district_domain, u.schoology_uid && "Schoology user " + u.schoology_uid].filter(Boolean).join(" · ");
+  const chip = $("connection");
+  const labels = { demo: ["Demo", ""], ok: ["Connected to Schoology", "ok"], expiring: ["Reconnect soon", "warn"], reconnect: ["Not connected", "bad"] };
+  const [label, cls] = labels[s.state];
+  chip.textContent = label + (s.expires_at && s.state !== "reconnect" ? " until " + date(s.expires_at) : "");
+  chip.className = "chip " + cls;
+  $("reconnect").hidden = s.state !== "reconnect";
+  $("reconnect-text").textContent = s.reason || "";
+  $("sync").hidden = s.state === "reconnect";
+
+  const tabs = $("children"); tabs.replaceChildren();
+  $("no-children").hidden = me.children.length > 0;
+  tabs.hidden = me.children.length < 2;
+  for (const c of me.children) {
+    const b = el("button", { text: c.name + (c.grade_level ? ` (grade ${c.grade_level})` : ""), "aria-selected": String(c.id === childId) });
+    b.addEventListener("click", () => { childId = c.id; renderProfile(); loadChild(); });
+    tabs.append(b);
+  }
+}
+
+function renderChild() {
+  const o = dash.overview, cause = dash.cause;
+  $("synced").textContent = "Last synced " + when(dash.child.last_synced_at);
+  $("tile-cause").textContent = CAUSES[cause.cause];
+  $("tile-missing").textContent = o.missing.length;
+  $("tile-late").textContent = o.late.length;
+  $("tile-upcoming").textContent = o.upcoming.length;
+
+  const courses = $("courses");
+  if (!o.courses.length) empty(courses, 7, "No courses yet. Try Sync now.");
+  else courses.replaceChildren(...o.courses.map((c) => el("tr", {}, [
+    td(c.title), td(num(c.average), "num"), change(c.change_7_days), change(c.change_14_days),
+    td(c.missing_count, "num"), td(c.late_count, "num"), td(c.awaiting_grade_count, "num"),
+  ])));
+
+  $("cause").textContent = CAUSES[cause.cause];
+  $("suggestion").textContent = cause.suggestion;
+  const pctRate = (r) => (r === null || r === undefined ? "–" : Math.round(r * 100) + "%");
+  $("cause-courses").replaceChildren(...cause.courses.map((c) => el("tr", {}, [
+    td(c.course), el("td", {}, [el("span", { class: "chip " + (c.cause === "on_track" ? "ok" : "warn"), text: CAUSES[c.cause] })]),
+    td(pctRate(c.missing_or_late_rate), "num"), td(num(c.completed_average), "num"), td(num(c.test_average), "num"),
+  ])));
+
+  const gap = $("gap");
+  if (!dash.gap.length) empty(gap, 4, "Needs both homework and test grades in a course.");
+  else gap.replaceChildren(...dash.gap.map((g) => el("tr", {}, [
+    td(g.course), td(num(g.homework_average), "num"), td(num(g.test_average), "num"),
+    el("td", { class: "num" }, [g.flagged ? el("span", { class: "chip warn", text: String(g.gap) }) : document.createTextNode(String(g.gap))]),
+  ])));
+  $("gap-hint").textContent = dash.gap.length ? `Highlighted when homework is ${dash.gap[0].threshold}+ points above tests.` : "";
+
+  const item = (a) => el("li", {}, [
+    el("span", { text: a.title }), el("span", { class: "hint", text: ` · ${a.course} · due ${date(a.due_at)}` }),
+  ]);
+  $("missing").replaceChildren(...(o.missing.length ? o.missing.map(item) : [el("li", { class: "empty", text: "Nothing missing." })]));
+  $("upcoming").replaceChildren(...(o.upcoming.length ? o.upcoming.map(item) : [el("li", { class: "empty", text: "Nothing due." })]));
+
+  const w = dash.weak_topics, weak = $("weak");
+  const flagged = w.topics.filter((t) => t.flagged);
+  const parts = [];
+  if (w.topics.length) {
+    parts.push(el("div", { class: "table-wrap" }, [el("table", {}, [
+      el("thead", {}, [el("tr", {}, [el("th", { text: "Topic" }), el("th", { text: "Courses" }),
+        el("th", { class: "num", text: "Assignments" }), el("th", { class: "num", text: "Points lost" }), el("th", { text: "" })])]),
+      el("tbody", {}, w.topics.map((t) => el("tr", {}, [td(t.topic), td(t.courses.join(", ")),
+        td(t.assignment_count, "num"), td(t.points_lost, "num"),
+        el("td", {}, t.flagged ? [el("span", { class: "chip warn", text: "Weak topic" })] : [])]))),
+    ])]));
+  }
+  if (w.unlabelled_marks) parts.push(el("p", { class: "hint",
+    text: `${w.unlabelled_marks} lost marks are waiting for AI topic labels, so topics will appear once topic labelling is running.` }));
+  if (!parts.length) parts.push(el("p", { class: "empty", text: "No lost marks recorded yet." }));
+  else if (w.topics.length) parts.push(el("p", { class: "hint", text: `A topic is a weak topic when it is missed in ${w.threshold}+ different assignments. ${flagged.length} so far.` }));
+  weak.replaceChildren(...parts);
+
+  const courseFilter = $("filter-course"), current = courseFilter.value;
+  courseFilter.replaceChildren(el("option", { value: "", text: "All courses" }),
+    ...o.courses.map((c) => el("option", { value: c.title, text: c.title })));
+  courseFilter.value = o.courses.some((c) => c.title === current) ? current : "";
+  renderAssignments();
+
+  const cats = $("categories");
+  if (!dash.categories.length) empty(cats, 4, "No grading categories.");
+  else cats.replaceChildren(...dash.categories.map((c) => el("tr", {}, [
+    td(c.course), td(c.title), td(c.kind), td(num(c.weight), "num"),
+  ])));
+}
+
+function renderAssignments() {
+  const course = $("filter-course").value, status = $("filter-status").value;
+  const rows = dash.assignments.filter((a) => (!course || a.course === course)
+    && (!status || (status === "late" ? a.late : a.status === status)));
+  const body = $("assignments");
+  if (!rows.length) empty(body, 7, "No assignments match.");
+  else body.replaceChildren(...rows.map((a) => {
+    const chips = [el("span", { class: "chip " + ({ missing: "bad", graded: "ok", awaiting_grade: "warn" }[a.status] || ""), text: STATUS[a.status] })];
+    if (a.late) chips.push(document.createTextNode(" "), el("span", { class: "chip warn", text: "Late" }));
+    const score = a.score === null ? "–" : `${a.score}/${a.max_points}` + (a.percent !== null ? ` (${a.percent}%)` : "");
+    return el("tr", {}, [td(a.title), td(a.course), td(a.category), td(date(a.due_at), "nowrap"), td(score, "num"),
+      el("td", {}, chips), td(a.teacher_comment || "")]);
+  }));
+  $("assignment-count").textContent = `${rows.length} of ${dash.assignments.length} assignments`;
+}
+
+async function loadChild() {
+  $("child-view").hidden = true;
+  try {
+    dash = await api(`/api/children/${childId}/dashboard`);
+    renderChild();
+    $("child-view").hidden = false;
+  } catch (e) { say("Could not load this child's data: " + e.message, "bad"); }
+}
+
+async function syncNow() {
+  const b = $("sync"); b.disabled = true; b.textContent = "Syncing…"; say("");
+  try {
+    await api("/api/sync", { method: "POST" });
+    me = await api("/api/me");
+    if (!childId && me.children.length) childId = me.children[0].id;
+    renderProfile();
+    if (childId) await loadChild();
+  } catch (e) {
+    say("Sync failed: " + e.message, "bad");
+    me = await api("/api/me"); renderProfile();
+  } finally { b.disabled = false; b.textContent = "Sync now"; }
+}
+
+async function start() {
+  me = await api("/api/me");
+  childId = me.children[0]?.id ?? null;
+  renderProfile();
+  const neverSynced = !me.user.is_demo && me.schoology.state !== "reconnect"
+    && (!me.children.length || me.children.some((c) => !c.last_synced_at));
+  if (neverSynced) await syncNow();
+  else if (childId) await loadChild();
+}
+
+$("filter-course").addEventListener("change", renderAssignments);
+$("filter-status").addEventListener("change", renderAssignments);
+$("sync").addEventListener("click", syncNow);
+$("logout").addEventListener("click", async () => { await fetch("/auth/logout", { method: "POST" }); location.replace("/"); });
+start().catch((e) => { if (e.message !== "signed out") say(e.message, "bad"); });
+</script>
+</body>
+</html>

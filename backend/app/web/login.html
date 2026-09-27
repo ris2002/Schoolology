@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Parent Insight</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/styles.css">
+<style>
+  main { max-width: 440px; padding-top: 12vh; }
+  .brand { margin-bottom: 20px; }
+  .or { text-align: center; color: var(--muted); margin: 16px 0; font-size: 13px; }
+  form button { width: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">
+    <h1>Parent Insight</h1>
+    <p class="muted">See how your child is doing at school, and why.</p>
+  </div>
+
+  <div id="error" class="banner bad" role="alert" hidden></div>
+
+  <section class="card stack">
+    <h2>Sign in with Schoology</h2>
+    <form id="schoology-form" class="stack">
+      <div>
+        <label for="domain">Your district's Schoology address</label>
+        <input type="text" id="domain" placeholder="yourdistrict.schoology.com" autocomplete="url" required>
+        <p class="hint">The address you use to sign in to Schoology. You'll sign in on Schoology's own page; this app never sees your password.</p>
+      </div>
+      <button class="primary" type="submit" id="schoology-button">Continue to Schoology</button>
+    </form>
+    <p id="not-configured" class="hint" hidden>Schoology sign-in is not set up yet: add SCHOOLOGY_CONSUMER_KEY and SCHOOLOGY_CONSUMER_SECRET to .env and restart the server.</p>
+  </section>
+
+  <div id="demo" hidden>
+    <div class="or">or</div>
+    <section class="card">
+      <button id="demo-button" style="width:100%">Try the demo with a sample child</button>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+const error = new URLSearchParams(location.search).get("error");
+if (error) { $("error").textContent = error; $("error").hidden = false; history.replaceState(null, "", "/"); }
+
+$("domain").value = store.get("schoology-domain") || "";
+
+fetch("/api/me").then((r) => { if (r.ok) location.replace("/dashboard"); });
+
+fetch("/auth/options").then((r) => r.json()).then((o) => {
+  if (!o.schoology_configured) { $("schoology-button").disabled = true; $("not-configured").hidden = false; }
+  $("demo").hidden = !o.demo_enabled;
+});
+
+$("schoology-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const domain = $("domain").value.trim().replace(/^https?:\/\//, "").split("/")[0];
+  store.set("schoology-domain", domain);
+  location.href = "/auth/start?domain=" + encodeURIComponent(domain);
+});
+
+$("demo-button").addEventListener("click", async () => {
+  $("demo-button").disabled = true;
+  const r = await fetch("/auth/demo", { method: "POST" });
+  if (r.ok) location.href = "/dashboard";
+  else { $("error").textContent = "Demo sign-in failed."; $("error").hidden = false; $("demo-button").disabled = false; }
+});
+</script>
+</body>
+</html>

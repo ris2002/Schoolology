@@ -6,6 +6,7 @@ signed session cookie holding the parent's user id.
 """
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
@@ -47,15 +48,30 @@ def connection_status(user: dict) -> dict:
     return {"state": "ok", "expires_at": expires_at}
 
 
+def back_to_sign_in(error: str) -> RedirectResponse:
+    """Browser sign-in errors return to the sign-in page, which shows the message."""
+    return RedirectResponse(f"/?{urlencode({'error': error})}", status_code=303)
+
+
+@router.get("/auth/options")
+def options():
+    """What the sign-in page should offer."""
+    return {
+        "schoology_configured": bool(config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET),
+        "demo_enabled": config.DEMO_MODE,
+        "allowed_domains": config.SCHOOLOGY_ALLOWED_DOMAINS,
+    }
+
+
 @router.get("/auth/start")
 def start(request: Request, domain: str = Query(..., description="District Schoology domain, e.g. irvingisd.schoology.com")):
-    domain = domain.strip().lower().removeprefix("https://").removeprefix("http://").rstrip("/")
+    domain = domain.strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0]
     if not schoology.is_allowed_domain(domain):
-        raise HTTPException(400, "That Schoology address is not supported")
+        return back_to_sign_in(f"{domain or 'That address'} is not an allowed Schoology address.")
     try:
         token, secret = schoology.get_request_token()
     except schoology.SchoologyError as e:
-        raise HTTPException(502, str(e)) from e
+        return back_to_sign_in(f"Could not start Schoology sign-in: {e}")
     # The request token secret is kept encrypted in the (signed, not encrypted) session cookie.
     request.session["oauth"] = {"token": token, "secret_enc": crypto.encrypt(secret), "domain": domain}
     return RedirectResponse(schoology.authorize_url(domain, token, f"{config.PUBLIC_URL}/auth/callback"))
@@ -65,13 +81,13 @@ def start(request: Request, domain: str = Query(..., description="District Schoo
 def callback(request: Request, oauth_token: str = Query(...), conn=Depends(get_db)):
     pending = request.session.pop("oauth", None)
     if not pending or pending["token"] != oauth_token:
-        raise HTTPException(400, "Sign-in expired or did not start here. Please try again.")
+        return back_to_sign_in("Sign-in expired or did not start here. Please try again.")
     try:
         token, secret = schoology.get_access_token(pending["token"], crypto.decrypt(pending["secret_enc"]))
         client = schoology.SchoologyClient(token, secret)
         me = client.me()
     except schoology.SchoologyError as e:
-        raise HTTPException(502, f"Schoology sign-in failed: {e}") from e
+        return back_to_sign_in(f"Schoology sign-in failed: {e}")
 
     uid = str(me.get("uid") or me.get("id"))
     user = one(
@@ -87,10 +103,13 @@ def callback(request: Request, oauth_token: str = Query(...), conn=Depends(get_d
         (uid, sync.display_name(me), me.get("primary_email"), pending["domain"],
          crypto.encrypt(token), crypto.encrypt(secret)),
     )
-    sync.sync_children_list(conn, user["id"], client, me)
+    try:
+        sync.sync_children_list(conn, user["id"], client, me)
+    except schoology.SchoologyError as e:
+        return back_to_sign_in(f"Signed in, but could not read your children from Schoology: {e}")
     request.session.clear()
     request.session["user_id"] = user["id"]
-    return RedirectResponse("/api/me", status_code=303)
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 @router.post("/auth/demo")

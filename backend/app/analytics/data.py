@@ -22,6 +22,10 @@ class ChildData:
         cat = self.category_by_id.get(assignment.get("category_id"))
         return cat["kind"] if cat else "other"
 
+    def category_title(self, assignment: dict) -> str | None:
+        cat = self.category_by_id.get(assignment.get("category_id"))
+        return cat["title"] if cat else None
+
     def course_title(self, assignment: dict) -> str:
         return self.course_by_id[assignment["course_id"]]["title"]
 

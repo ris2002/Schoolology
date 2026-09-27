@@ -2,13 +2,17 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import admin, ai_keys, api, auth, config, db
 
 logging.basicConfig(level=logging.INFO)
+WEB = Path(__file__).with_name("web")
 
 
 @asynccontextmanager
@@ -33,11 +37,17 @@ app.include_router(auth.router)
 app.include_router(api.router)
 app.include_router(ai_keys.router)
 app.include_router(admin.router)
+app.mount("/static", StaticFiles(directory=WEB), name="static")
 
 
-@app.get("/")
-def root():
-    return {"name": "Parent Insight Assistant", "api_docs": "/docs", "admin": "/admin"}
+@app.get("/", include_in_schema=False)
+def sign_in_page():
+    return FileResponse(WEB / "login.html")
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_page():
+    return FileResponse(WEB / "dashboard.html")
 
 
 @app.get("/health")

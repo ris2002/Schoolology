@@ -70,11 +70,56 @@ def test_parents_cannot_see_each_others_children():
 
 
 def test_schoology_sign_in_rejects_unlisted_domains(client):
-    assert client.get("/auth/start", params={"domain": "evil.example.com"}, follow_redirects=False).status_code == 400
+    r = client.get("/auth/start", params={"domain": "evil.example.com"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/?error=")
 
 
 def test_callback_without_a_started_sign_in_is_refused(client):
-    assert client.get("/auth/callback", params={"oauth_token": "x"}).status_code == 400
+    r = client.get("/auth/callback", params={"oauth_token": "x"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/?error=")
+
+
+def test_schoology_sign_in_stores_encrypted_tokens_and_opens_dashboard(client, monkeypatch):
+    from app import schoology, sync
+
+    monkeypatch.setattr(schoology, "get_request_token", lambda: ("req-token", "req-secret"))
+    monkeypatch.setattr(schoology, "get_access_token", lambda t, s: ("access-token-123", "access-secret-456"))
+    student = {"uid": "555", "name_display": "Sam Student", "primary_email": "sam@example.org", "child_uids": ""}
+    monkeypatch.setattr(schoology.SchoologyClient, "me", lambda self: student)
+
+    r = client.get("/auth/start", params={"domain": "district.schoology.com"}, follow_redirects=False)
+    assert r.headers["location"].startswith("https://district.schoology.com/oauth/authorize?oauth_token=req-token")
+    assert "oauth_callback=http%3A%2F%2Ftestserver%2Fauth%2Fcallback" in r.headers["location"]
+
+    r = client.get("/auth/callback", params={"oauth_token": "req-token"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/dashboard"
+
+    me = client.get("/api/me").json()
+    assert me["user"]["name"] == "Sam Student" and me["user"]["district_domain"] == "district.schoology.com"
+    assert me["schoology"]["state"] == "ok"
+    assert [c["name"] for c in me["children"]] == ["Sam Student"]  # a student account is its own child
+    with db.session() as conn:
+        row = db.one(conn, "select * from users where schoology_uid = '555'")
+        assert "access-token-123" not in row["access_token_enc"]
+        assert sync.client_for_user(row)._auth.client.resource_owner_key == "access-token-123"
+
+
+def test_pages_and_sign_in_options(client):
+    assert "Sign in with Schoology" in client.get("/").text
+    assert "All assignments" in client.get("/dashboard").text
+    assert client.get("/static/styles.css").status_code == 200
+    options = client.get("/auth/options").json()
+    assert options["demo_enabled"] is True
+
+
+def test_dashboard_returns_every_rule_based_section():
+    c, child_id = demo_client()
+    d = c.get(f"/api/children/{child_id}/dashboard").json()
+    assert d["child"]["name"] == "Maya"
+    assert set(d) >= {"overview", "categories", "assignments", "gap", "cause", "weak_topics"}
+    assert {a["category"] for a in d["assignments"]} >= {"Homework", "Tests and Quizzes"}
+    assert any(cat["weight"] == 60 for cat in d["categories"])
+    assert d["cause"]["cause"] == "understanding"
 
 
 # --- AI features report their status without breaking the facts ---

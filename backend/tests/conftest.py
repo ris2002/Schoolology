@@ -23,4 +23,7 @@ os.environ.update({
     "ANTHROPIC_API_KEY": "sk-ant-app-test-key",
     "PUBLIC_URL": "http://testserver",
     "SMTP_HOST": "",
+    "SCHOOLOGY_CONSUMER_KEY": "test-consumer-key",
+    "SCHOOLOGY_CONSUMER_SECRET": "test-consumer-secret",
+    "SCHOOLOGY_ALLOWED_DOMAINS": "*.schoology.com",
 })

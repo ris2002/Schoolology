@@ -2,7 +2,7 @@
 
 An AI assistant that turns a child's Schoology data into clear answers and advice for parents: what is missing, which topics they keep losing marks on, whether it looks like effort or understanding, and what to do next.
 
-This repository is the **backend** (Python, FastAPI, Supabase Postgres). There is no parent-facing frontend yet; everything is available as a JSON API, plus a small admin page.
+This repository is the **backend** (Python, FastAPI, Supabase Postgres). It serves a JSON API plus three simple pages: a sign-in page (`/`), a dashboard of everything calculated without AI (`/dashboard`), and the admin panel (`/admin`).
 
 **The core rule:** grades, dates and averages come from plain code. The AI explains the numbers but never produces them.
 
@@ -40,13 +40,15 @@ Thresholds are starting values in `backend/app/config.py`, to be tuned in the pi
 
 Parents never give this app a password. Schoology uses three-legged OAuth 1.0a:
 
-1. The parent enters their district's Schoology address, e.g. `irvingisd.schoology.com`. It must match `SCHOOLOGY_ALLOWED_DOMAINS`.
+1. On the sign-in page (`/`), the parent enters their district's Schoology address, e.g. `irvingisd.schoology.com`. It must match `SCHOOLOGY_ALLOWED_DOMAINS`.
 2. `GET /auth/start?domain=...` gets a request token and sends the parent to **their district's own Schoology login page** (which may use district single sign-on).
 3. The parent approves. Schoology returns them to `GET /auth/callback`.
-4. The backend swaps the request token for an access token, stores it **encrypted**, reads the parent and their children (`child_uids`), and starts a signed session cookie.
+4. The backend swaps the request token for an access token, stores it **encrypted**, reads the parent and their children (`child_uids`), starts a signed session cookie and opens `/dashboard`. The first visit syncs grades automatically. A student account has no children, so it is shown as its own child.
 5. Schoology access tokens last **90 days**. `GET /api/me` reports `schoology.state` as `ok`, `expiring` (within 7 days) or `reconnect`. A rejected token also switches to `reconnect`.
 
-`POST /auth/demo` signs in to a sample child without Schoology, while `DEMO_MODE=true`.
+The sign-in page also offers **Try the demo** (`POST /auth/demo`), a sample child with no Schoology needed, while `DEMO_MODE=true`.
+
+The redirect back from Schoology happens in the parent's own browser, so `PUBLIC_URL=http://localhost:8000` works for testing on your own computer. For a quick test with one real account, a consumer key and secret from that user's `https://<district>.schoology.com/api` page can go in `SCHOOLOGY_CONSUMER_KEY` / `SCHOOLOGY_CONSUMER_SECRET`. It can read only that user's own data.
 
 > **Before real parents can sign in:** register a developer app in the Schoology App Center and get it approved for the district. Since June 2025, only approved apps can read another user's data, which is what a parent reading their child's grades needs. The Schoology calls marked `UNVERIFIED` in `schoology.py` and `sync.py` still need testing with a real parent account.
 
@@ -102,6 +104,7 @@ cd backend
 ../.venv/bin/uvicorn app.main:app --reload
 ```
 
+- Sign in: http://localhost:8000
 - API docs: http://localhost:8000/docs
 - Admin: http://localhost:8000/admin
 
@@ -123,6 +126,7 @@ All child routes check that the child belongs to the signed-in parent. AI-backed
 |---|---|
 | `GET /api/me` | Parent, children, Schoology connection state, AI provider |
 | `POST /api/sync` | Sync now, then label topics and raise alerts |
+| `GET /api/children/{id}/dashboard` | Everything the rule layer calculates, in one response (used by `/dashboard`) |
 | `GET /api/children/{id}/overview` | Courses, averages, trends, missing, late, upcoming |
 | `GET /api/children/{id}/weak-topics` | Ranked topics with examples |
 | `POST /api/children/{id}/weak-topics/label` | Label unlabelled lost marks now |

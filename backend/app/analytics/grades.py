@@ -87,6 +87,7 @@ def assignment_ref(data: ChildData, a: dict, now: datetime) -> dict:
         "assignment_id": a["id"],
         "title": a["title"],
         "course": data.course_title(a),
+        "category": data.category_title(a),
         "kind": data.kind(a),
         "due_at": a["due_at"],
         "status": status(a, now),
