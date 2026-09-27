@@ -46,6 +46,10 @@ SCHOOLOGY_DISTRICTS = [
     )
     if name.strip() and domain.strip()
 ]
+# Developer only: sign in directly as the owner of SCHOOLOGY_CONSUMER_KEY when it is a
+# personal key from <district>/api (two-legged OAuth, no approval page). Works only for
+# requests made on this computer. Never enable on a public server.
+SCHOOLOGY_PERSONAL_KEY_SIGN_IN = _bool("SCHOOLOGY_PERSONAL_KEY_SIGN_IN", False)
 # Schoology due dates have no timezone; they are read in the school's local time.
 SCHOOL_TIMEZONE = os.getenv("SCHOOL_TIMEZONE", "America/Chicago")
 # Schoology access tokens expire 90 days after they are issued.

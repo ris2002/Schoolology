@@ -32,7 +32,12 @@ class ChildData:
 
 def load(conn, child_id: int) -> ChildData:
     return ChildData(
-        courses=all_rows(conn, "select id, title from courses where child_id = %s order by title", (child_id,)),
+        courses=all_rows(
+            conn,
+            """select id, title, official_grade, official_grade_label from courses
+               where child_id = %s order by title""",
+            (child_id,),
+        ),
         categories=all_rows(
             conn,
             """select c.id, c.course_id, c.title, c.kind, c.weight from categories c

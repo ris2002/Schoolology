@@ -40,6 +40,11 @@ def upsert_course(conn, child_id: int, ext_id: str, title: str) -> int:
     return row["id"]
 
 
+def set_official_grade(conn, course_id: int, grade: float | None, label: str | None) -> None:
+    conn.execute("update courses set official_grade = %s, official_grade_label = %s where id = %s",
+                 (grade, label, course_id))
+
+
 def upsert_category(conn, course_id: int, ext_id: str, title: str, weight: float | None) -> int:
     row = one(
         conn,

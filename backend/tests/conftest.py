@@ -26,4 +26,5 @@ os.environ.update({
     "SCHOOLOGY_CONSUMER_KEY": "test-consumer-key",
     "SCHOOLOGY_CONSUMER_SECRET": "test-consumer-secret",
     "SCHOOLOGY_ALLOWED_DOMAINS": "*.schoology.com",
+    "SCHOOLOGY_PERSONAL_KEY_SIGN_IN": "false",
 })

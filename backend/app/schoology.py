@@ -140,6 +140,9 @@ class SchoologyClient:
         """UNVERIFIED for parent tokens: the child's course sections."""
         return self.get(f"/users/{uid}/sections").get("section") or []
 
+    def section(self, section_id: str) -> dict:
+        return self.get(f"/sections/{section_id}")
+
     def grades(self, uid: str) -> list[dict]:
         """UNVERIFIED for parent tokens: grades per section, with category ids and comments."""
         return self.get(f"/users/{uid}/grades").get("section") or []

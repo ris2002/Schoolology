@@ -87,6 +87,15 @@ def test_trend_compares_with_work_known_a_week_ago():
     assert row["change_7_days"] == -20.0
 
 
+def test_overview_prefers_schoologys_official_grade():
+    c = {**course(), "official_grade": 88.4, "official_grade_label": "2027M1"}
+    cat = category(c["id"], "test")
+    data = ChildData([c], [cat], [assignment(c["id"], cat["id"], 80)])
+    row = grades.overview(data, NOW)["courses"][0]
+    assert row["average"] == 88.4 and row["average_source"] == "schoology"
+    assert row["calculated_average"] == 80.0
+
+
 def test_gap_flagged_at_threshold():
     c = course()
     hw, test = category(c["id"], "homework"), category(c["id"], "test")

@@ -88,4 +88,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
         sys.exit(__doc__)
-    COMMANDS[sys.argv[1]]()
+    try:
+        COMMANDS[sys.argv[1]]()
+    finally:
+        db.close()

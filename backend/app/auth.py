@@ -59,11 +59,70 @@ def options(request: Request):
     pending = request.session.get("oauth")
     return {
         "pending_sign_in": {"domain": pending["domain"]} if pending else None,
+        "personal_key_sign_in": personal_key_available(request),
         "schoology_configured": bool(config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET),
         "demo_enabled": config.DEMO_MODE,
         "districts": config.SCHOOLOGY_DISTRICTS,
         "allowed_domains": config.SCHOOLOGY_ALLOWED_DOMAINS,
     }
+
+
+LOCAL_ADDRESSES = {"127.0.0.1", "::1", "localhost"}
+# Headers added by tunnels and proxies. Their presence means the request came from outside.
+PROXY_HEADERS = ("cf-connecting-ip", "x-forwarded-for", "x-real-ip", "forwarded")
+
+
+def is_local_request(request: Request) -> bool:
+    return (
+        request.client is not None and request.client.host in LOCAL_ADDRESSES
+        and not any(h in request.headers for h in PROXY_HEADERS)
+    )
+
+
+def personal_key_available(request: Request) -> bool:
+    return (
+        config.SCHOOLOGY_PERSONAL_KEY_SIGN_IN
+        and bool(config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET)
+        and is_local_request(request)
+    )
+
+
+@router.post("/auth/personal-key")
+def personal_key_sign_in(request: Request, conn=Depends(get_db)):
+    """Developer sign-in as the owner of a personal Schoology API key (two-legged OAuth).
+
+    A personal key cannot complete the parent approval flow (Schoology will not send
+    the approval back to an outside address), but it can read its owner's own data
+    directly. The empty token pair is what two-legged OAuth sends.
+    """
+    if not personal_key_available(request):
+        raise HTTPException(404)
+    client = schoology.SchoologyClient("", "")
+    try:
+        me = client.me()
+    except schoology.SchoologyError as e:
+        return back_to_sign_in(f"The personal key did not work: {e}")
+    uid = str(me.get("uid") or me.get("id"))
+    domain = config.SCHOOLOGY_DISTRICTS[0]["domain"] if config.SCHOOLOGY_DISTRICTS else None
+    user = one(
+        conn,
+        """insert into users (schoology_uid, name, email, district_domain, access_token_enc, access_secret_enc,
+                              token_issued_at, token_invalid, last_login_at)
+           values (%s, %s, %s, %s, %s, %s, now(), false, now())
+           on conflict (schoology_uid) do update set
+               name = excluded.name, email = excluded.email,
+               access_token_enc = excluded.access_token_enc, access_secret_enc = excluded.access_secret_enc,
+               token_issued_at = now(), token_invalid = false, last_login_at = now()
+           returning id""",
+        (uid, sync.display_name(me), me.get("primary_email"), domain, crypto.encrypt(""), crypto.encrypt("")),
+    )
+    try:
+        sync.sync_children_list(conn, user["id"], client, me)
+    except schoology.SchoologyError as e:
+        return back_to_sign_in(f"Signed in, but could not read children from Schoology: {e}")
+    request.session.clear()
+    request.session["user_id"] = user["id"]
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 @router.get("/auth/start")

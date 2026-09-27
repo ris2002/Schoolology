@@ -130,6 +130,29 @@ def test_approved_sign_in_can_be_finished_without_the_return_trip(client, monkey
     assert client.post("/auth/finish", follow_redirects=False).headers["location"].startswith("/?error=")
 
 
+def test_personal_key_sign_in_is_off_by_default(client):
+    assert client.post("/auth/personal-key").status_code == 404
+    assert client.get("/auth/options").json()["personal_key_sign_in"] is False
+
+
+def test_personal_key_sign_in_works_only_from_this_computer(client, monkeypatch):
+    from app import auth, schoology
+
+    monkeypatch.setattr(config, "SCHOOLOGY_PERSONAL_KEY_SIGN_IN", True)
+    monkeypatch.setattr(auth, "LOCAL_ADDRESSES", auth.LOCAL_ADDRESSES | {"testclient"})
+    monkeypatch.setattr(schoology.SchoologyClient, "me",
+                        lambda self: {"uid": "999", "name_display": "Key Owner", "child_uids": ""})
+
+    # Through a tunnel or proxy: refused, even with the setting on.
+    assert client.post("/auth/personal-key", headers={"cf-connecting-ip": "203.0.113.9"}).status_code == 404
+
+    assert client.get("/auth/options").json()["personal_key_sign_in"] is True
+    r = client.post("/auth/personal-key", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/dashboard"
+    me = client.get("/api/me").json()
+    assert me["user"]["name"] == "Key Owner" and [c["name"] for c in me["children"]] == ["Key Owner"]
+
+
 def test_pages_and_sign_in_options(client):
     assert "Sign in with Schoology" in client.get("/").text
     assert "All assignments" in client.get("/dashboard").text

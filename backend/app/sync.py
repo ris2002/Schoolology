@@ -24,7 +24,7 @@ LATE_CHECK_DAYS = 30
 
 
 def client_for_user(user: dict) -> SchoologyClient:
-    if not user.get("access_token_enc"):
+    if user.get("access_token_enc") is None:
         raise SchoologyAuthError("This account has no Schoology connection")
     return SchoologyClient(crypto.decrypt(user["access_token_enc"]), crypto.decrypt(user["access_secret_enc"]))
 
@@ -60,6 +60,43 @@ def _float(value) -> float | None:
         return None
 
 
+def _optional(fetch, *args):
+    """Result of a Schoology read, or None when this account may not read it."""
+    try:
+        return fetch(*args)
+    except SchoologyAuthError:
+        raise
+    except SchoologyError as e:
+        log.info("Skipping %s%s: %s", fetch.__name__, args, e)
+        return None
+
+
+def _official_grade(section_grades: dict) -> tuple[float | None, str | None]:
+    """Schoology's grade for the latest grading period that has one, else its overall final grade."""
+    finals = {str(f.get("period_id")): _float(f.get("grade")) for f in section_grades.get("final_grade") or []}
+    for period in reversed(section_grades.get("period") or []):
+        grade = finals.get(str(period.get("period_id")))
+        if grade is not None:
+            return round(grade, 1), period.get("period_title") or "Current period"
+    if finals.get("final") is not None:
+        return round(finals["final"], 1), "Final"
+    return None, None
+
+
+def _categories_from_grades(section_grades: dict) -> list[dict]:
+    """Category ids and titles from a grades response, with weights where the final grade lists them."""
+    weights = {}
+    for final in section_grades.get("final_grade") or []:
+        for cat in final.get("grading_category") or []:
+            if cat.get("weight") not in (None, ""):
+                weights[str(cat.get("id"))] = cat.get("weight")
+    return [
+        {"id": cat["id"], "title": cat.get("title"), "weight": weights.get(str(cat["id"]))}
+        for cat in section_grades.get("grading_category") or []
+        if cat.get("id") is not None
+    ]
+
+
 def sync_children_list(conn, user_id: int, client: SchoologyClient, me: dict) -> list[int]:
     """Create or update the parent's children. Returns child ids."""
     uids = client.child_uids(me)
@@ -82,24 +119,57 @@ def sync_child(conn, child: dict, client: SchoologyClient) -> dict:
     now = datetime.now(timezone.utc)
     counts = {"courses": 0, "assignments": 0}
 
-    for section in client.sections(uid):
+    # /users/{uid}/sections can leave out active courses that do have grades
+    # (seen with a Coppell ISD student account), so add every graded section too.
+    sections = {str(sec["id"]): sec for sec in client.sections(uid)}
+    for section_id in grades_by_section:
+        if section_id not in sections:
+            try:
+                sections[section_id] = client.section(section_id)
+            except SchoologyAuthError:
+                raise
+            except SchoologyError:
+                log.info("Graded section %s is not readable; skipping", section_id)
+
+    for section in sections.values():
         section_id = str(section["id"])
         title = section.get("course_title") or section.get("section_title") or f"Section {section_id}"
         course_id = store.upsert_course(conn, child["id"], section_id, title)
         counts["courses"] += 1
 
-        category_ids = {}
-        for cat in client.grading_categories(section_id):
-            category_ids[str(cat["id"])] = store.upsert_category(
-                conn, course_id, str(cat["id"]), cat.get("title") or "Other", _float(cat.get("weight"))
-            )
-
+        section_grades = grades_by_section.get(section_id) or {}
+        store.set_official_grade(conn, course_id, *_official_grade(section_grades))
         grades = {}
-        for period in (grades_by_section.get(section_id) or {}).get("period") or []:
+        for period in section_grades.get("period") or []:
             for g in period.get("assignment") or []:
                 grades[str(g.get("assignment_id"))] = g
 
-        for a in client.assignments(section_id):
+        # Some courses let a student see their grades but not the course's categories
+        # or assignment list (403). Fall back to what the grades response carries.
+        categories = _optional(client.grading_categories, section_id)
+        if categories is None:
+            categories = _categories_from_grades(section_grades)
+        category_ids, category_titles = {}, {}
+        for cat in categories:
+            category_ids[str(cat["id"])] = store.upsert_category(
+                conn, course_id, str(cat["id"]), cat.get("title") or "Other", _float(cat.get("weight"))
+            )
+            category_titles[str(cat["id"])] = cat.get("title") or "Other"
+
+        assignments = _optional(client.assignments, section_id) or []
+        listed = {str(a["id"]) for a in assignments}
+        for ext_id, g in grades.items():
+            if ext_id not in listed:
+                category = category_titles.get(str(g.get("category_id") or ""))
+                assignments.append({
+                    "id": ext_id,
+                    "title": f"Graded item ({category})" if category else "Graded item",
+                    "max_points": g.get("max_points"),
+                    "grading_category": g.get("category_id"),
+                    "title_unavailable": True,
+                })
+
+        for a in assignments:
             ext_id = str(a["id"])
             g = grades.get(ext_id, {})
             max_points = _float(g.get("max_points")) or _float(a.get("max_points"))
@@ -146,7 +216,7 @@ def sync_child(conn, child: dict, client: SchoologyClient) -> dict:
                     ref="assignment",
                     points_possible=max_points,
                     points_lost=max_points - score,
-                    question_text=a.get("title"),
+                    question_text=None if a.get("title_unavailable") else a.get("title"),
                     teacher_comment=g.get("comment") or None,
                 )
             else:

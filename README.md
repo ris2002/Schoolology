@@ -58,7 +58,26 @@ The redirect back from Schoology happens in the parent's own browser, but School
 
 Put the `https://<random>.trycloudflare.com` address it prints into `PUBLIC_URL` in `.env`, restart the server, and open that address. The address changes every time the tunnel restarts. A sign-in started on any other name for the server (e.g. `localhost`) moves to `PUBLIC_URL` first, so the session cookie is where Schoology returns.
 
-If Schoology still lands on its own page after **Approve**, the sign-in page offers **I've approved, finish signing in**, which completes the sign-in without the return trip. For a quick test with one real account, a consumer key and secret from that user's `https://<district>.schoology.com/api` page can go in `SCHOOLOGY_CONSUMER_KEY` / `SCHOOLOGY_CONSUMER_SECRET`. It can read only that user's own data.
+If Schoology still lands on its own page after **Approve**, the sign-in page offers **I've approved, finish signing in**, which completes the sign-in without the return trip.
+
+**Personal API keys cannot complete this sign-in.** Tested with a Coppell ISD student account: Schoology shows the Approve page, then refuses to send the approval to any outside address ("Unable to authenticate, there was no valid return URL found"), whether `localhost`, `lvh.me` or an `https` tunnel, and does not record the approval. Real parents need a registered developer app.
+
+### Developer sign-in with a personal key
+
+A personal key can read its owner's own data directly (two-legged OAuth, no approval page). For testing with one real account:
+
+1. The account owner gets a Consumer Key and Secret from `https://<district's Schoology address>/api` while signed in.
+2. Put them in `SCHOOLOGY_CONSUMER_KEY` / `SCHOOLOGY_CONSUMER_SECRET` and set `SCHOOLOGY_PERSONAL_KEY_SIGN_IN=true`.
+3. Restart the server and open http://localhost:8000. A **Developer sign-in** button appears.
+
+The button works only for requests made on the same computer, never through a tunnel or proxy, because it signs in as the key's owner without any approval. Never enable it on a public server.
+
+### What a real account returned (Coppell ISD student, Sept 2026)
+
+- `/users/{uid}/sections` left out 5 active courses that had grades. Sync adds every section that appears in `/users/{uid}/grades`.
+- For those 5 courses, categories, assignments and grade items were all 403. Their grades still come through: each becomes "Graded item (category)" with its score, points, category and date graded, but no title or due date.
+- Category weights were hidden in those courses, so calculated averages were 0.1 to 3.1 points off. The overview shows Schoology's own grade for the current grading period when it reports one, and marks calculated averages "calc.". Where weights were visible, the calculated average matched Schoology's exactly.
+- Coppell category names such as "Performance", "Performance Tasks" and "High Priority Standards" are not recognised as homework or test yet, so those count as "other". For a quick test with one real account, a consumer key and secret from that user's `https://<district>.schoology.com/api` page can go in `SCHOOLOGY_CONSUMER_KEY` / `SCHOOLOGY_CONSUMER_SECRET`. It can read only that user's own data.
 
 > **Before real parents can sign in:** register a developer app in the Schoology App Center and get it approved for the district. Since June 2025, only approved apps can read another user's data, which is what a parent reading their child's grades needs. The Schoology calls marked `UNVERIFIED` in `schoology.py` and `sync.py` still need testing with a real parent account.
 

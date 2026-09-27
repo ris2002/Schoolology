@@ -51,6 +51,8 @@
           <th class="num">Missing</th><th class="num">Late</th><th class="num">Awaiting grade</th></tr></thead>
         <tbody id="courses"></tbody>
       </table></div>
+      <p class="hint">Averages are Schoology's own grade for the current grading period. "calc." marks
+        averages calculated from graded work because Schoology reported none. 7 and 14 day changes are calculated.</p>
     </section>
 
     <div class="grid2">
@@ -193,7 +195,11 @@ function renderChild() {
   const courses = $("courses");
   if (!o.courses.length) empty(courses, 7, "No courses yet. Try Sync now.");
   else courses.replaceChildren(...o.courses.map((c) => el("tr", {}, [
-    td(c.title), td(num(c.average), "num"), change(c.change_7_days), change(c.change_14_days),
+    td(c.title), el("td", { class: "num", title: c.average_source === "schoology"
+      ? "Schoology's grade" + (c.official_grade_label ? " for " + c.official_grade_label : "")
+      : "Calculated from graded work" }, [document.createTextNode(num(c.average)),
+      ...(c.average_source === "calculated" ? [el("span", { class: "hint", text: " calc." })] : [])]),
+    change(c.change_7_days), change(c.change_14_days),
     td(c.missing_count, "num"), td(c.late_count, "num"), td(c.awaiting_grade_count, "num"),
   ])));
 
