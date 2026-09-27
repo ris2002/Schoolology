@@ -1,0 +1,15 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+itsdangerous>=2.2
+python-dotenv>=1.0
+psycopg[binary]>=3.2
+psycopg_pool>=3.2
+requests>=2.32
+requests-oauthlib>=2.0
+cryptography>=43
+anthropic>=1.8
+huggingface_hub>=1.0
+
+# Tests
+pytest>=8
+httpx>=0.27

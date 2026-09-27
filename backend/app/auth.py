@@ -1,0 +1,113 @@
+"""Parent sign-in with Schoology (three-legged OAuth), demo sign-in, and session checks.
+
+The app has no passwords of its own. The parent signs in on their district's
+Schoology page; we keep only the resulting access token, encrypted, and a
+signed session cookie holding the parent's user id.
+"""
+
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
+
+from . import config, crypto, demo, schoology, sync
+from .db import get_db, one
+
+router = APIRouter()
+
+
+def current_user(request: Request, conn=Depends(get_db)) -> dict:
+    user_id = request.session.get("user_id")
+    user = one(conn, "select * from users where id = %s", (user_id,)) if user_id else None
+    if user is None:
+        raise HTTPException(401, "Not signed in")
+    return user
+
+
+def child_for_user(child_id: int, user: dict = Depends(current_user), conn=Depends(get_db)) -> dict:
+    """The child, only if it belongs to the signed-in parent."""
+    child = one(conn, "select * from children where id = %s and user_id = %s", (child_id, user["id"]))
+    if child is None:
+        raise HTTPException(404, "Child not found")
+    return child
+
+
+def connection_status(user: dict) -> dict:
+    """Whether the parent's Schoology connection works, and when it must be renewed."""
+    if user["is_demo"]:
+        return {"state": "demo"}
+    if user["token_invalid"] or not user["token_issued_at"]:
+        return {"state": "reconnect", "reason": "Schoology no longer accepts this connection"}
+    expires_at = user["token_issued_at"] + timedelta(days=config.SCHOOLOGY_TOKEN_DAYS)
+    now = datetime.now(timezone.utc)
+    if now >= expires_at:
+        return {"state": "reconnect", "reason": "The Schoology connection has expired", "expires_at": expires_at}
+    if now >= expires_at - timedelta(days=config.SCHOOLOGY_RECONNECT_WARNING_DAYS):
+        return {"state": "expiring", "expires_at": expires_at}
+    return {"state": "ok", "expires_at": expires_at}
+
+
+@router.get("/auth/start")
+def start(request: Request, domain: str = Query(..., description="District Schoology domain, e.g. irvingisd.schoology.com")):
+    domain = domain.strip().lower().removeprefix("https://").removeprefix("http://").rstrip("/")
+    if not schoology.is_allowed_domain(domain):
+        raise HTTPException(400, "That Schoology address is not supported")
+    try:
+        token, secret = schoology.get_request_token()
+    except schoology.SchoologyError as e:
+        raise HTTPException(502, str(e)) from e
+    # The request token secret is kept encrypted in the (signed, not encrypted) session cookie.
+    request.session["oauth"] = {"token": token, "secret_enc": crypto.encrypt(secret), "domain": domain}
+    return RedirectResponse(schoology.authorize_url(domain, token, f"{config.PUBLIC_URL}/auth/callback"))
+
+
+@router.get("/auth/callback")
+def callback(request: Request, oauth_token: str = Query(...), conn=Depends(get_db)):
+    pending = request.session.pop("oauth", None)
+    if not pending or pending["token"] != oauth_token:
+        raise HTTPException(400, "Sign-in expired or did not start here. Please try again.")
+    try:
+        token, secret = schoology.get_access_token(pending["token"], crypto.decrypt(pending["secret_enc"]))
+        client = schoology.SchoologyClient(token, secret)
+        me = client.me()
+    except schoology.SchoologyError as e:
+        raise HTTPException(502, f"Schoology sign-in failed: {e}") from e
+
+    uid = str(me.get("uid") or me.get("id"))
+    user = one(
+        conn,
+        """insert into users (schoology_uid, name, email, district_domain, access_token_enc, access_secret_enc,
+                              token_issued_at, token_invalid, last_login_at)
+           values (%s, %s, %s, %s, %s, %s, now(), false, now())
+           on conflict (schoology_uid) do update set
+               name = excluded.name, email = excluded.email, district_domain = excluded.district_domain,
+               access_token_enc = excluded.access_token_enc, access_secret_enc = excluded.access_secret_enc,
+               token_issued_at = now(), token_invalid = false, last_login_at = now()
+           returning id""",
+        (uid, sync.display_name(me), me.get("primary_email"), pending["domain"],
+         crypto.encrypt(token), crypto.encrypt(secret)),
+    )
+    sync.sync_children_list(conn, user["id"], client, me)
+    request.session.clear()
+    request.session["user_id"] = user["id"]
+    return RedirectResponse("/api/me", status_code=303)
+
+
+@router.post("/auth/demo")
+def demo_sign_in(request: Request, conn=Depends(get_db)):
+    if not config.DEMO_MODE:
+        raise HTTPException(404)
+    user = one(
+        conn,
+        "insert into users (name, is_demo, last_login_at) values ('Demo parent', true, now()) returning id",
+    )
+    demo.seed(conn, user["id"])
+    request.session.clear()
+    request.session["user_id"] = user["id"]
+    return {"ok": True}
+
+
+@router.post("/auth/logout")
+def logout(request: Request):
+    request.session.clear()
+    return {"ok": True}

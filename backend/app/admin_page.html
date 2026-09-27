@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · Parent Insight</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #dde1e6;
+    --accent: #2457c5; --accent-text: #ffffff; --ok: #1d7a46; --bad: #b3261e; --chip: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --card: #1a1e24; --text: #e7eaee; --muted: #9aa3ad; --line: #2c323a;
+      --accent: #6d9bff; --accent-text: #0d1117; --ok: #5cc98a; --bad: #ff8a80; --chip: #252b33;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  label { font-weight: 600; }
+  .hint { color: var(--muted); font-size: 13px; }
+  input[type=text], input[type=password] { width: 100%; padding: 9px 11px; border: 1px solid var(--line);
+         border-radius: 7px; background: var(--bg); color: var(--text); font: inherit; }
+  button { padding: 9px 16px; border-radius: 7px; border: 1px solid var(--line); background: var(--chip);
+           color: var(--text); font: inherit; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled { opacity: .6; cursor: default; }
+  .providers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .provider { border: 2px solid var(--line); border-radius: 9px; padding: 12px 14px; cursor: pointer; }
+  .provider.active { border-color: var(--accent); }
+  .provider input { margin-right: 6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field { margin-top: 12px; }
+  .status { font-size: 13px; }
+  .status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+  .switch { position: relative; width: 44px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: var(--line); border-radius: 24px; transition: .15s; cursor: pointer; }
+  .slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px;
+                    background: #fff; border-radius: 50%; transition: .15s; }
+  .switch input:checked + .slider { background: var(--accent); }
+  .switch input:checked + .slider::before { transform: translateX(20px); }
+  .switch input:focus-visible + .slider { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat b { display: block; font-size: 20px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  #message { min-height: 22px; margin-top: 12px; }
+  [hidden] { display: none !important; }
+  @media (max-width: 560px) { .providers, .grid { grid-template-columns: 1fr; } .stats { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Admin</h1>
+  <p class="sub">AI provider, model and bring-your-own-key settings.</p>
+
+  <section id="login" class="card" hidden>
+    <h2>Sign in</h2>
+    <form id="login-form">
+      <input type="password" id="password" placeholder="Admin password" autocomplete="current-password" required>
+      <div class="actions"><button class="primary" type="submit">Sign in</button></div>
+      <p id="login-error" class="status bad"></p>
+    </form>
+  </section>
+
+  <div id="panel" hidden>
+    <section class="card">
+      <h2>AI provider</h2>
+      <div class="providers" id="providers"></div>
+      <p class="hint">All AI features use the selected provider and its model.</p>
+    </section>
+
+    <section class="card">
+      <h2>Models and keys</h2>
+      <div class="grid" id="provider-settings"></div>
+    </section>
+
+    <section class="card">
+      <div class="actions" style="margin-top:0">
+        <button class="primary" id="save">Save changes</button>
+        <button id="test">Test saved model</button>
+        <button id="logout">Sign out</button>
+      </div>
+      <div id="message" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>Usage</h2>
+      <div class="stats" id="stats"></div>
+    </section>
+  </div>
+</main>
+
+<datalist id="models-huggingface"></datalist>
+<datalist id="models-anthropic"></datalist>
+
+<script>
+const NAMES = { huggingface: "Hugging Face", anthropic: "Claude" };
+let state = null;
+
+const $ = (id) => document.getElementById(id);
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "text") node.textContent = v; else if (k === "class") node.className = v; else node.setAttribute(k, v);
+  }
+  for (const c of children) node.append(c);
+  return node;
+}
+async function api(path, options = {}) {
+  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(body.detail || res.statusText), { status: res.status });
+  return body;
+}
+function say(text, ok = true) { const m = $("message"); m.textContent = text; m.className = "status " + (ok ? "ok" : "bad"); }
+
+function render() {
+  const providers = $("providers"); providers.replaceChildren();
+  for (const p of Object.keys(NAMES)) {
+    const radio = el("input", { type: "radio", name: "provider", value: p });
+    radio.checked = state.provider === p;
+    radio.addEventListener("change", () => { state.provider = p; render(); });
+    const card = el("label", { class: "provider" + (state.provider === p ? " active" : "") }, [
+      radio, NAMES[p], el("div", { class: "hint", text: state.models[p] }),
+    ]);
+    providers.append(card);
+  }
+
+  const grid = $("provider-settings"); grid.replaceChildren();
+  for (const p of Object.keys(NAMES)) {
+    const list = $("models-" + p); list.replaceChildren(...state.model_suggestions[p].map((m) => el("option", { value: m })));
+    const model = el("input", { type: "text", list: "models-" + p, value: state.models[p], "aria-label": NAMES[p] + " model" });
+    model.addEventListener("input", () => { state.models[p] = model.value; });
+
+    const toggle = el("input", { type: "checkbox", "aria-label": "Let parents use their own " + NAMES[p] + " key" });
+    toggle.checked = state.byok[p];
+    toggle.addEventListener("change", () => { state.byok[p] = toggle.checked; });
+
+    grid.append(el("div", {}, [
+      el("label", { text: NAMES[p] }),
+      el("div", { class: "field" }, [el("div", { class: "hint", text: "Model" }), model]),
+      el("div", { class: "field status " + (state.app_keys[p] ? "ok" : "bad"),
+                  text: state.app_keys[p] ? "App key is set" : "App key missing in .env" }),
+      el("div", { class: "field row" }, [
+        el("div", {}, [el("div", { text: "Parents' own keys (BYOK)" }),
+                       el("div", { class: "hint", text: state.parent_keys_saved[p] + " saved" })]),
+        el("label", { class: "switch" }, [toggle, el("span", { class: "slider" })]),
+      ]),
+    ]));
+  }
+}
+
+async function loadStats() {
+  const s = await api("/admin/api/stats");
+  const items = [["Parents", s.parents], ["Children", s.children], ["Need reconnect", s.needs_reconnect], ["Demo sessions", s.demo_sessions]];
+  $("stats").replaceChildren(...items.map(([k, v]) => el("div", { class: "stat" }, [el("b", { text: String(v) }), el("span", { class: "hint", text: k })])));
+}
+
+async function load() {
+  try {
+    state = await api("/admin/api/settings");
+    $("login").hidden = true; $("panel").hidden = false;
+    render(); loadStats();
+  } catch (e) {
+    if (e.status === 401) { $("panel").hidden = true; $("login").hidden = false; } else { say(e.message, false); }
+  }
+}
+
+$("login-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try { await api("/admin/login", { method: "POST", body: JSON.stringify({ password: $("password").value }) }); $("password").value = ""; load(); }
+  catch (e) { $("login-error").textContent = e.message; }
+});
+$("save").addEventListener("click", async () => {
+  try {
+    state = await api("/admin/api/settings", { method: "PUT",
+      body: JSON.stringify({ provider: state.provider, models: state.models, byok: state.byok }) });
+    render(); say("Saved.");
+  } catch (e) { say(e.message, false); }
+});
+$("test").addEventListener("click", async () => {
+  const button = $("test"); button.disabled = true; say("Testing…");
+  try {
+    const r = await api("/admin/api/test", { method: "POST" });
+    say(r.ok ? `${NAMES[r.provider]} · ${r.model} replied "${r.reply}" in ${r.seconds}s` : `${NAMES[r.provider]} · ${r.model}: ${r.error}`, r.ok);
+  } catch (e) { say(e.message, false); } finally { button.disabled = false; }
+});
+$("logout").addEventListener("click", async () => { await api("/admin/logout", { method: "POST" }); load(); });
+load();
+</script>
+</body>
+</html>

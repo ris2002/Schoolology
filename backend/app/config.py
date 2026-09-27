@@ -1,0 +1,84 @@
+"""Settings, read once from the environment (or a .env file in the repo root)."""
+
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT / ".env")
+
+
+def _bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Web app
+SESSION_SECRET = os.getenv("SESSION_SECRET", "")
+PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
+DEMO_MODE = _bool("DEMO_MODE", True)
+TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+# Supabase Postgres
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# Schoology (three-legged OAuth 1.0a)
+SCHOOLOGY_CONSUMER_KEY = os.getenv("SCHOOLOGY_CONSUMER_KEY", "")
+SCHOOLOGY_CONSUMER_SECRET = os.getenv("SCHOOLOGY_CONSUMER_SECRET", "")
+SCHOOLOGY_API_BASE = os.getenv("SCHOOLOGY_API_BASE", "https://api.schoology.com/v1")
+SCHOOLOGY_ALLOWED_DOMAINS = [
+    d.strip().lower()
+    for d in os.getenv("SCHOOLOGY_ALLOWED_DOMAINS", "*.schoology.com").split(",")
+    if d.strip()
+]
+# Schoology due dates have no timezone; they are read in the school's local time.
+SCHOOL_TIMEZONE = os.getenv("SCHOOL_TIMEZONE", "America/Chicago")
+# Schoology access tokens expire 90 days after they are issued.
+SCHOOLOGY_TOKEN_DAYS = 90
+# Ask the parent to reconnect this many days before the token expires.
+SCHOOLOGY_RECONNECT_WARNING_DAYS = 7
+
+# AI providers: the app's own keys. Provider and model are admin settings in the database.
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+DEFAULT_PROVIDER = "huggingface"
+DEFAULT_MODELS = {
+    "huggingface": "Qwen/Qwen2.5-72B-Instruct",
+    "anthropic": "claude-opus-5",
+}
+
+# Optional email delivery for weekly summaries and alerts
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "")
+
+# Rule thresholds. Starting examples from the plan, to be tuned in the pilot.
+THRESHOLDS = {
+    "weak_topic_min_assignments": 3,  # topic missed in 3+ assignments is flagged
+    "gap_points": 20,  # homework avg minus test avg
+    "alert_average_drop": 10,  # course average down 10+ points in a week
+    "alert_low_test_score": 60,  # a test or quiz graded below this percent
+    "weekly_grade_move": 3,  # grade move worth mentioning in the weekly summary
+    "effort_missing_rate": 0.20,  # share of due work missing or late
+    "effort_completed_avg": 75,  # scores are fine when work is done
+    "on_time_rate": 0.90,  # "work on time"
+    "low_score": 70,  # "low scores"
+    "sudden_drop_points": 10,  # drop across all subjects over two weeks
+}
+
+
+def check_required() -> list[str]:
+    """Settings the server cannot run safely without."""
+    missing = [
+        name
+        for name, value in [
+            ("SESSION_SECRET", SESSION_SECRET),
+            ("TOKEN_ENCRYPTION_KEY", TOKEN_ENCRYPTION_KEY),
+            ("DATABASE_URL", DATABASE_URL),
+        ]
+        if not value
+    ]
+    return missing
