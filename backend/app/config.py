@@ -41,7 +41,7 @@ SCHOOLOGY_DISTRICTS = [
         entry.partition("=")
         for entry in os.getenv(
             "SCHOOLOGY_DISTRICTS",
-            "Irving ISD=irvingisd.schoology.com,Grand Prairie ISD=gpisd.schoology.com",
+            "Coppell ISD=schoology.coppellisd.com,Irving ISD=irvingisd.schoology.com,Grand Prairie ISD=gpisd.schoology.com",
         ).split(",")
     )
     if name.strip() and domain.strip()
