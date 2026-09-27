@@ -14,12 +14,12 @@ from zoneinfo import ZoneInfo
 from . import config, store
 
 # (question, child's answer, teacher comment, points possible, points earned)
-FRACTION_DIVIDE = ("3/4 ÷ 1/2 = ?", "3/8", "Keep, change, flip: multiply by the reciprocal.", 10, 0)
-FRACTION_ADD = ("2/3 + 1/4 = ?", "3/7", "Find a common denominator first.", 10, 0)
-FRACTION_WORD = ("A recipe uses 2/3 cup of flour per batch. How much for 4 1/2 batches?", "6 2/3", "Convert the mixed number first.", 10, 5)
-RATIO_SIMPLIFY = ("Write 12:18 in simplest form.", "6:9", "Divide by the greatest common factor.", 10, 5)
-RATIO_UNIT_RATE = ("$4.80 for 6 apples. What is the unit price?", "$1.25", None, 10, 0)
-NEGATIVE_ADD = ("-7 + 4 = ?", "-11", "Check the signs.", 10, 0)
+FRACTION_DIVIDE = ("3/4 ÷ 1/2 = ?", "3/8", "Keep, change, flip: multiply by the reciprocal.", 15, 0)
+FRACTION_ADD = ("2/3 + 1/4 = ?", "3/7", "Find a common denominator first.", 15, 0)
+FRACTION_WORD = ("A recipe uses 2/3 cup of flour per batch. How much for 4 1/2 batches?", "6 2/3", "Convert the mixed number first.", 15, 5)
+RATIO_SIMPLIFY = ("Write 12:18 in simplest form.", "6:9", "Divide by the greatest common factor.", 15, 5)
+RATIO_UNIT_RATE = ("$4.80 for 6 apples. What is the unit price?", "$1.25", None, 15, 0)
+NEGATIVE_ADD = ("-7 + 4 = ?", "-11", "Check the signs.", 15, 0)
 
 MATH_TESTS = [
     # (weeks ago, day offset, title, lost questions)
