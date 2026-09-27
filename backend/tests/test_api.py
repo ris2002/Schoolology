@@ -101,7 +101,9 @@ def test_labelling_stores_topics_and_weak_topics_appear(monkeypatch):
     result = c.post(f"/api/children/{child_id}/weak-topics/label").json()
     assert result["error"] is None and result["remaining"] == 0
     weak = c.get(f"/api/children/{child_id}/weak-topics").json()
-    assert weak["topics"][0]["topic"] == "Fractions" and weak["topics"][0]["flagged"]
+    assert weak["unlabelled_marks"] == 0
+    fractions = next(t for t in weak["topics"] if t["topic"] == "Fractions")
+    assert fractions["flagged"] and fractions["courses"] == ["Math 7"]
 
 
 def test_alerts_fire_once(monkeypatch):
