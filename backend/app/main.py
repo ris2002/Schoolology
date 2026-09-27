@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import admin, ai_keys, api, auth, config, db
+from . import admin, ai_keys, api, auth, config, db, papers
 
 logging.basicConfig(level=logging.INFO)
 WEB = Path(__file__).with_name("web")
@@ -37,6 +37,7 @@ app.include_router(auth.router)
 app.include_router(api.router)
 app.include_router(ai_keys.router)
 app.include_router(admin.router)
+app.include_router(papers.router)
 app.mount("/static", StaticFiles(directory=WEB), name="static")
 
 

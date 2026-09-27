@@ -9,11 +9,26 @@ from huggingface_hub.errors import HfHubHTTPError
 from .types import LLMBadOutput, LLMError, LLMNotConfigured, LLMResponse, ToolCall
 
 
+def _hf_content(content):
+    if isinstance(content, str):
+        return content
+    parts = []
+    for part in content:
+        if part["type"] == "text":
+            parts.append({"type": "text", "text": part["text"]})
+        elif part["type"] == "image":
+            url = f"data:{part['media_type']};base64,{part['data']}"
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+        else:
+            raise ValueError(f"unknown content part {part['type']!r}")
+    return parts
+
+
 def to_hf_messages(system: str, messages: list[dict]) -> list[dict]:
     out = [{"role": "system", "content": system}] if system else []
     for m in messages:
         if m["role"] == "user":
-            out.append({"role": "user", "content": m["content"]})
+            out.append({"role": "user", "content": _hf_content(m["content"])})
         elif m["role"] == "assistant":
             msg = {"role": "assistant", "content": m.get("content") or ""}
             if m.get("tool_calls"):

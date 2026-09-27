@@ -10,6 +10,12 @@ cryptography>=43
 anthropic>=1.8
 huggingface_hub>=1.0
 
+# Paper uploads: form parsing, PDF pages to images, iPhone HEIC photos
+python-multipart>=0.0.9
+pymupdf>=1.24
+pillow>=10
+pillow-heif>=0.18
+
 # Tests
 pytest>=8
 httpx>=0.27

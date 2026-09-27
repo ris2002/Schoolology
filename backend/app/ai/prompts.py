@@ -18,3 +18,7 @@ CAUSE_EXPLAINER = ""  # TODO: feature 5
 GAP_EXPLAINER = ""  # TODO: feature 6
 
 CHAT_AGENT = ""  # TODO: feature 7
+
+PAPER_READER = ""  # TODO: read a marked paper (vision)
+
+ASSIGNMENT_ADVICE = ""  # TODO: advice for one uploaded assignment

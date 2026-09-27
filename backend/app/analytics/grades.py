@@ -18,6 +18,9 @@ from .data import ChildData
 
 
 def counts_toward_grade(a: dict) -> bool:
+    # Work known only from an uploaded paper never changes the school's averages.
+    if a.get("source") == "paper":
+        return False
     return not a["excused"] and bool(a["max_points"]) and (a["score"] is not None or a["marked_missing"])
 
 
@@ -98,6 +101,7 @@ def assignment_ref(data: ChildData, a: dict, now: datetime) -> dict:
         "percent": percent(a),
         "late": a["late"],
         "teacher_comment": a["teacher_comment"],
+        "source": a.get("source", "schoology"),
     }
 
 

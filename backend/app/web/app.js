@@ -3,7 +3,7 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const PAGES = ["overview", "alerts", "week", "topics", "advice", "ask", "settings"];
+const PAGES = ["overview", "alerts", "week", "topics", "papers", "advice", "ask", "settings"];
 const CAUSES = {
   understanding: "Understanding", effort: "Effort", mixed: "Effort and understanding",
   broad_understanding: "Broad understanding", outside_school: "Something outside school", on_track: "On track",
@@ -18,7 +18,8 @@ const SUGGESTIONS = [
   "What tests are coming up?",
 ];
 
-const state = { me: null, childId: null, dash: null, loaded: {} };
+// paperFiles: previews of files uploaded in this browser session, by paper id. Never sent back to the server.
+const state = { me: null, childId: null, dash: null, loaded: {}, papers: [], paper: null, paperFiles: {} };
 
 // ---------- small helpers ----------
 
@@ -71,9 +72,9 @@ function aiNote(error, action = "write an explanation") {
   if (error.startsWith("not_configured")) return `AI isn't set up yet, so it can't ${action}.`;
   return `The AI couldn't ${action} right now: ${error}`;
 }
-function aiBlock(text, error, label = "AI explanation") {
+function aiBlock(text, error, label = "AI explanation", action) {
   if (text) return el("div", { class: "ai" }, [el("span", { class: "ai-label", text: label }), el("p", { text })]);
-  return el("div", { class: "ai missing", text: aiNote(error) || "No explanation yet." });
+  return el("div", { class: "ai missing", text: aiNote(error, action) || "No explanation yet." });
 }
 
 // ---------- shell: profile, children, navigation ----------
@@ -95,10 +96,11 @@ function renderShell() {
   $("sync").hidden = s.state === "reconnect";
 }
 
-function currentPage() {
-  const page = location.hash.replace(/^#\/?/, "");
-  return PAGES.includes(page) ? page : "overview";
+function route() {
+  const [page, param] = location.hash.replace(/^#\/?/, "").split("/");
+  return { page: PAGES.includes(page) ? page : "overview", param: param || null };
 }
+const currentPage = () => route().page;
 
 function showPage() {
   const page = currentPage();
@@ -107,7 +109,7 @@ function showPage() {
   document.querySelectorAll(".tabs-nav a").forEach((a) => {
     if (a.dataset.page === page) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
-  loadPage(page);
+  loadPage(page).then(() => { if (page === "papers") showPaperRoute(); });
 }
 
 // Each page loads once per child; Sync and actions reload what they change.
@@ -116,7 +118,7 @@ async function loadPage(page, force = false) {
   if (state.loaded[page] && !force) return;
   state.loaded[page] = true;
   try {
-    await ({ overview: loadOverview, alerts: loadAlerts, week: loadWeek, topics: loadTopics,
+    await ({ overview: loadOverview, alerts: loadAlerts, week: loadWeek, topics: loadTopics, papers: loadPapers,
              advice: loadAdvice, ask: loadChat, settings: loadSettings })[page]();
   } catch (e) {
     state.loaded[page] = false;
@@ -296,6 +298,7 @@ async function loadAdvice() {
   ])));
   $("gap").replaceChildren(el("p", { class: "hint", text: "Loading…" }));
 
+  loadPaperAdvice();
   const [advice, gap] = await Promise.all([api(childUrl("/advice")), api(childUrl("/gap"))]);
   $("cause-explanation").replaceChildren(aiBlock(advice.explanation, advice.ai_error));
 
@@ -314,6 +317,207 @@ async function loadAdvice() {
   ]));
   $("gap").replaceChildren(el("div", { class: "table-wrap" }, table),
     el("p", { class: "hint", text: `Highlighted when homework is ${gap.courses[0].threshold}+ points above tests.` }), ...explained);
+}
+
+// ---------- Papers (AI reads, parent checks, AI advises) ----------
+
+async function loadPapers() {
+  const d = await dashboard();
+  const courses = [...d.overview.courses].sort((a, b) =>
+    (b.average !== null) - (a.average !== null) || a.title.localeCompare(b.title));
+  $("paper-course").replaceChildren(new Option("Choose a subject", ""), ...courses.map((c) => new Option(c.title, c.course_id)));
+  fillAssignments();
+  await loadPaperList();
+}
+
+function fillAssignments() {
+  const d = state.dash, courseId = Number($("paper-course").value);
+  const course = d.overview.courses.find((c) => c.course_id === courseId);
+  const items = course ? d.assignments.filter((a) => a.course === course.title && a.source !== "paper") : [];
+  const label = (a) => a.title + (a.percent !== null ? ` (${a.percent}%)` : "") + (a.due_at ? ` · ${date(a.due_at)}` : "");
+  $("paper-assignment").replaceChildren(
+    new Option(course ? "Choose an assignment" : "Choose a subject first", ""),
+    ...items.map((a) => new Option(label(a), a.assignment_id)),
+    ...(course ? [new Option("Not in Schoology: type a name", "new")] : []),
+  );
+  $("paper-assignment").disabled = !course;
+  showTitleBox();
+}
+function showTitleBox() {
+  const isNew = $("paper-assignment").value === "new";
+  $("paper-title-wrap").hidden = !isNew;
+  $("paper-title").required = isNew;
+}
+
+function previewTiles(items) {
+  return items.map((f) => f.url
+    ? el("img", { src: f.url, alt: f.name })
+    : el("div", { class: "file-chip", text: f.name }));
+}
+function filePreviews(files) {
+  return [...files].map((f) => ({
+    name: f.name,
+    url: f.type.startsWith("image/") && !/hei[cf]/i.test(f.type) ? URL.createObjectURL(f) : null,
+  }));
+}
+
+async function loadPaperList() {
+  state.papers = await api(childUrl("/papers"));
+  const list = $("paper-list");
+  if (!state.papers.length) { list.replaceChildren(el("p", { class: "empty", text: "No papers uploaded yet." })); return; }
+  list.replaceChildren(...state.papers.map((p) => {
+    const item = el("div", { class: "paper-item", role: "link", tabindex: "0" }, [
+      el("div", {}, [el("b", { text: p.title }), el("div", { class: "hint", text: `${p.subject} · uploaded ${date(p.created_at)}` })]),
+      el("div", {}, [
+        p.totals.percent !== null ? el("span", { class: "hint", text: `${p.totals.earned}/${p.totals.possible} (${p.totals.percent}%) ` }) : null,
+        el("span", { class: "chip " + (p.status === "confirmed" ? "ok" : "warn"), text: p.status === "confirmed" ? "Confirmed" : "Needs checking" }),
+      ]),
+    ]);
+    const open = () => { location.hash = `#/papers/${p.id}`; };
+    item.addEventListener("click", open);
+    item.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+    return item;
+  }));
+}
+
+async function showPaperRoute() {
+  const id = Number(route().param);
+  $("paper-upload").hidden = $("paper-list-card").hidden = Boolean(id);
+  $("paper-view").hidden = !id;
+  if (!id) return;
+  try { renderPaper(await api(childUrl(`/papers/${id}`))); }
+  catch (e) { say("Could not open this paper: " + e.message, "bad"); location.hash = "#/papers"; }
+}
+
+function questionRow(q = {}) {
+  const input = (name, value, cls, type = "text") => el("td", { class: cls },
+    el("input", { name, type, value: value ?? "", step: type === "number" ? "any" : undefined, min: type === "number" ? "0" : undefined,
+                  "aria-label": name.replaceAll("_", " ") }));
+  const remove = el("button", { type: "button", class: "small", text: "✕", "aria-label": "Remove question" });
+  const row = el("tr", {}, [
+    input("label", q.label, "", "text"), input("question", q.question), input("student_answer", q.student_answer),
+    input("points_earned", q.points_earned, "num", "number"), input("points_possible", q.points_possible, "num", "number"),
+    input("teacher_comment", q.teacher_comment), el("td", {}, remove),
+  ]);
+  remove.addEventListener("click", () => { row.remove(); updateTotal(); });
+  row.addEventListener("input", updateTotal);
+  return row;
+}
+
+function readQuestions() {
+  return [...$("paper-questions").querySelectorAll("tr")].map((tr) => {
+    const v = (n) => tr.querySelector(`[name=${n}]`).value.trim();
+    const n = (k) => (v(k) === "" ? null : Number(v(k)));
+    return { label: v("label") || null, question: v("question") || null, student_answer: v("student_answer") || null,
+             teacher_comment: v("teacher_comment") || null, points_earned: n("points_earned"), points_possible: n("points_possible") };
+  });
+}
+
+// Shown while editing; the server recalculates totals when saving.
+function updateTotal() {
+  const qs = readQuestions().filter((q) => q.points_earned !== null && q.points_possible);
+  const earned = qs.reduce((s, q) => s + q.points_earned, 0), possible = qs.reduce((s, q) => s + q.points_possible, 0);
+  $("paper-total").textContent = possible ? `Total ${earned}/${possible} (${Math.round(1000 * earned / possible) / 10}%)` : "";
+}
+
+function renderPaper(p) {
+  state.paper = p;
+  $("paper-heading").textContent = p.title;
+  $("paper-sub").textContent = `${p.subject} · ${p.page_count} page${p.page_count === 1 ? "" : "s"} · uploaded ${date(p.created_at)}`
+    + (p.in_schoology ? " · in Schoology" : " · not in Schoology");
+  const files = state.paperFiles[p.id];
+  $("paper-view-previews").replaceChildren(...(files ? previewTiles(files)
+    : [el("p", { class: "hint", text: "The original file isn't kept. Use your own copy to compare." })]));
+
+  const note = [];
+  if (p.status === "review") {
+    note.push(p.read_error
+      ? el("div", { class: "ai missing", text: aiNote(p.read_error, "read the paper") + " Enter the questions and marks below instead." })
+      : el("div", { class: "ai missing", text: "Check every row against the paper and fix anything read wrongly, then confirm." }));
+  }
+  $("paper-read-note").replaceChildren(...note);
+
+  const editable = p.status === "review";
+  $("paper-questions").replaceChildren(...(p.questions.length ? p.questions : editable ? [{}] : []).map((q) => questionRow(q)));
+  $("paper-questions").querySelectorAll("input").forEach((i) => { i.disabled = !editable; });
+  $("paper-questions").querySelectorAll("button").forEach((b) => { b.hidden = !editable; });
+  $("paper-add-row").hidden = !editable;
+  updateTotal();
+
+  const actions = [];
+  const button = (text, cls, handler) => { const b = el("button", { class: "small " + cls, text }); b.addEventListener("click", () => handler(b)); return b; };
+  if (editable) {
+    actions.push(button("Save", "", (b) => savePaper(b)));
+    actions.push(button("Confirm and get advice", "primary", (b) => confirmPaper(b)));
+  } else {
+    actions.push(button("Edit results", "", () => { renderPaper({ ...p, status: "review", read_error: null }); }));
+    actions.push(button("Rewrite advice", "", (b) => paperAction(b, "Writing…", () => api(childUrl(`/papers/${p.id}/advice`), { method: "POST" }))));
+  }
+  actions.push(button("Delete paper", "", async (b) => {
+    if (!confirm("Delete this paper and its results?")) return;
+    await paperAction(b, "Deleting…", () => api(childUrl(`/papers/${p.id}`), { method: "DELETE" }));
+    afterPaperChange(); location.hash = "#/papers";
+  }));
+  $("paper-actions").replaceChildren(...actions);
+  $("paper-advice").replaceChildren(...(p.status === "confirmed"
+    ? [el("h2", { text: "Advice for this assignment" }), aiBlock(p.advice, p.advice_error, "AI advice", "write advice")] : []));
+}
+
+async function paperAction(button, label, fn) {
+  busy(button, true, label);
+  try { const r = await fn(); if (r && r.id) renderPaper(r); return r; }
+  catch (e) { say(e.message, "bad"); }
+  finally { busy(button, false); }
+}
+const savePaper = (b) => paperAction(b, "Saving…", () => api(childUrl(`/papers/${state.paper.id}/questions`), { method: "PUT", json: { questions: readQuestions() } }))
+  .then((r) => { if (r) { say("Saved.", "ok"); afterPaperChange(); } });
+async function confirmPaper(b) {
+  busy(b, true, "Confirming…");
+  try {
+    await api(childUrl(`/papers/${state.paper.id}/questions`), { method: "PUT", json: { questions: readQuestions() } });
+    renderPaper(await api(childUrl(`/papers/${state.paper.id}/confirm`), { method: "POST" }));
+    say("Confirmed. Weak topics and advice now include this paper.", "ok");
+    afterPaperChange();
+  } catch (e) { say(e.message, "bad"); }
+  finally { busy(b, false); }
+}
+// Confirmed results change topics, advice and the dashboard, so those reload next time.
+function afterPaperChange() { state.dash = null; ["overview", "topics", "advice"].forEach((k) => { state.loaded[k] = false; }); }
+
+async function uploadPaper(ev) {
+  ev.preventDefault();
+  const files = $("paper-files").files;
+  const assignment = $("paper-assignment").value;
+  const form = new FormData();
+  form.append("course_id", $("paper-course").value);
+  if (assignment === "new") form.append("title", $("paper-title").value); else form.append("assignment_id", assignment);
+  for (const f of files) form.append("files", f);
+  const b = $("paper-read"); busy(b, true, "Reading the paper…");
+  try {
+    const r = await fetch(childUrl("/papers"), { method: "POST", body: form });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    state.paperFiles[body.id] = filePreviews(files);
+    $("paper-form").reset(); $("paper-previews").replaceChildren(); fillAssignments();
+    state.loaded.papers = true; await loadPaperList();
+    location.hash = `#/papers/${body.id}`;
+  } catch (e) { say("Upload failed: " + e.message, "bad"); }
+  finally { busy(b, false); }
+}
+
+async function loadPaperAdvice() {
+  const list = $("paper-advice-list");
+  try {
+    const papers = (await api(childUrl("/papers"))).filter((p) => p.status === "confirmed");
+    if (!papers.length) { list.replaceChildren(el("p", { class: "empty", text: "No confirmed papers yet. Upload one on the Papers page." })); return; }
+    list.replaceChildren(...papers.map((p) => el("div", { class: "topic" }, [
+      el("div", { class: "topic-head" }, [
+        el("a", { href: `#/papers/${p.id}`, text: p.title }),
+        el("span", { class: "hint", text: `${p.subject} · ${p.totals.earned}/${p.totals.possible} (${p.totals.percent}%) · ${date(p.confirmed_at)}` }),
+      ]),
+      aiBlock(p.advice, p.advice_error, "AI advice", "write advice"),
+    ])));
+  } catch (e) { list.replaceChildren(el("p", { class: "empty", text: "Couldn't load paper advice: " + e.message })); }
 }
 
 // ---------- Ask (chat agent) ----------
@@ -444,6 +648,12 @@ function wire() {
     } catch (e) { say(e.message, "bad"); } finally { busy(ev.target, false); }
   });
   $("chat-form").addEventListener("submit", (ev) => { ev.preventDefault(); ask($("chat-input").value); });
+  $("paper-course").addEventListener("change", fillAssignments);
+  $("paper-assignment").addEventListener("change", showTitleBox);
+  $("paper-files").addEventListener("change", (e) => { $("paper-previews").replaceChildren(...previewTiles(filePreviews(e.target.files))); });
+  $("paper-form").addEventListener("submit", uploadPaper);
+  $("paper-add-row").addEventListener("click", () => { $("paper-questions").append(questionRow()); });
+  $("paper-close").addEventListener("click", () => { location.hash = "#/papers"; });
   $("chat-clear").addEventListener("click", async () => { await api(childUrl("/chat"), { method: "DELETE" }); state.loaded.ask = false; loadChat(); });
 }
 

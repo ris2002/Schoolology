@@ -125,6 +125,12 @@ def upsert_lost_mark(
     )
 
 
+def has_question_marks(conn, assignment_id: int) -> bool:
+    """True when a confirmed paper gave question-level marks for this assignment."""
+    return one(conn, "select exists(select 1 from lost_marks where assignment_id = %s and granularity = 'question') as x",
+               (assignment_id,))["x"]
+
+
 def remove_lost_mark(conn, assignment_id: int, ref: str) -> None:
     """A regrade to full marks means there is no longer anything lost."""
     conn.execute("delete from lost_marks where assignment_id = %s and ref = %s", (assignment_id, ref))

@@ -13,11 +13,26 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 REPLAY_BLOCKS = {"text", "thinking", "redacted_thinking", "tool_use"}
 
 
+def _anthropic_content(content):
+    if isinstance(content, str):
+        return content
+    blocks = []
+    for part in content:
+        if part["type"] == "text":
+            blocks.append({"type": "text", "text": part["text"]})
+        elif part["type"] == "image":
+            blocks.append({"type": "image", "source": {"type": "base64", "media_type": part["media_type"],
+                                                       "data": part["data"]}})
+        else:
+            raise ValueError(f"unknown content part {part['type']!r}")
+    return blocks
+
+
 def to_anthropic_messages(messages: list[dict]) -> list[dict]:
     out: list[dict] = []
     for m in messages:
         if m["role"] == "user":
-            out.append({"role": "user", "content": m["content"]})
+            out.append({"role": "user", "content": _anthropic_content(m["content"])})
         elif m["role"] == "assistant":
             if m.get("raw") and m.get("raw_provider") == "anthropic":
                 out.append({"role": "assistant", "content": m["raw"]})

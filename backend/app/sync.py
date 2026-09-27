@@ -206,8 +206,8 @@ def sync_child(conn, child: dict, client: SchoologyClient) -> dict:
             )
             counts["assignments"] += 1
 
-            # Assignment-level lost marks until question-level data is available.
-            if score is not None and max_points and score < max_points:
+            # Assignment-level lost marks until question-level data (an uploaded paper) exists.
+            if score is not None and max_points and score < max_points and not store.has_question_marks(conn, assignment_id):
                 store.upsert_lost_mark(
                     conn,
                     child_id=child["id"],

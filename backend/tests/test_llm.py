@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.llm import ToolCall, tool_result
+from app.llm import ToolCall, image_part, text_part, tool_result
 from app.llm.anthropic_provider import to_anthropic_messages, to_anthropic_tools
 from app.llm.huggingface_provider import HuggingFaceProvider, extract_json, to_hf_messages, to_hf_tools
 from app.llm.types import LLMBadOutput
@@ -84,3 +84,12 @@ def test_hugging_face_json_mode_rejects_non_json(monkeypatch):
     monkeypatch.setattr(provider._client, "chat_completion", lambda **kw: _hf_reply(content="Sorry, no."))
     with pytest.raises(LLMBadOutput):
         provider.chat("sys", [{"role": "user", "content": "hi"}], json_schema={"type": "object"})
+
+
+def test_images_convert_for_both_providers():
+    msg = [{"role": "user", "content": [text_part("Read this paper."), image_part(b"\xff\xd8jpeg", "image/jpeg")]}]
+    a = to_anthropic_messages(msg)[0]["content"]
+    assert a[0] == {"type": "text", "text": "Read this paper."}
+    assert a[1]["source"] == {"type": "base64", "media_type": "image/jpeg", "data": "/9hqcGVn"}
+    h = to_hf_messages("sys", msg)[1]["content"]
+    assert h[1] == {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,/9hqcGVn"}}

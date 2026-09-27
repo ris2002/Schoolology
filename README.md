@@ -5,7 +5,7 @@ An AI assistant that turns a child's Schoology data into clear answers and advic
 This repository is the **backend** (Python, FastAPI, Supabase Postgres). It serves a JSON API plus the web app:
 
 - `/` sign-in (district dropdown, demo, developer sign-in when enabled)
-- `/dashboard` the parent app, with sections Overview, Alerts, This week, Topics, Advice, Ask and Settings
+- `/dashboard` the parent app, with sections Overview, Alerts, This week, Topics, Papers, Advice, Ask and Settings
 - `/admin` the admin panel
 
 Each section shows the code-calculated facts immediately. Where an AI feature adds text (alert lines, weekly summary, topic labels, cause and gap explanations, chat answers), it appears in a marked "AI explanation" block. Until that feature is implemented or an AI key is set, a short note says why instead, so the app works at every stage of the AI build.
@@ -39,6 +39,17 @@ Schoology API ──> sync ──> Supabase ──> rule layer (code) ──> AI
 | 5 | Effort or understanding | Score the signals, rules pick the cause | Explain it as a possible reason |
 | 6 | Homework vs test gap | Flag gaps of 20+ points | Explain it neutrally |
 | 7 | Chat | Tools return stored facts | Answer only from those facts |
+
+### Marked papers (parents)
+
+On the **Papers** page a parent picks the subject and assignment (or "Not in Schoology" with a name), then uploads photos or a PDF of a marked paper (JPG, PNG, HEIC or PDF; up to 10 pages and 15 MB; `PAPER_UPLOADS_PER_DAY`, default 10, per parent).
+
+1. The files are turned into page images in memory (`paper_images.py`), read by the AI (`ai/papers.py: read_marked_paper`) and discarded. **The file is never stored.**
+2. The parent checks and corrects each question in an editable table. If reading failed or AI isn't set up, they enter the results by hand.
+3. **Confirm** saves question-level lost marks (replacing the assignment-level estimate for that assignment), labels their topics, and writes advice for that assignment (`write_assignment_advice`). The advice is aware of earlier work: the facts include topics this paper repeats from earlier assignments in the same subject, plus the subject's effort-or-understanding verdict and homework-vs-test gap.
+4. The advice appears on the paper and in **Advice from uploaded papers** on the Advice page.
+
+Work that isn't in Schoology is saved as an assignment with `source = 'paper'`. It feeds weak topics and advice, but never course averages. Editing a confirmed paper takes its results out until it is confirmed again, and deleting a paper removes its results.
 
 Thresholds are starting values in `backend/app/config.py`, to be tuned in the pilot. Not in this build: photo upload, teacher message drafts, multi-language, tutor matching, class scanning.
 
@@ -170,6 +181,11 @@ All child routes check that the child belongs to the signed-in parent. AI-backed
 | `GET /api/children/{id}/alerts` | Alerts; `POST .../alerts/refresh`, `POST .../alerts/{alert_id}/read` |
 | `GET /api/children/{id}/summaries` | Weekly summaries; `POST .../summaries/generate?force=true` |
 | `GET/POST/DELETE /api/children/{id}/chat` | Chat history, ask a question, clear |
+| `POST /api/children/{id}/papers` | Upload and read a marked paper (form: `course_id`, `assignment_id` or `title`, `files`) |
+| `GET /api/children/{id}/papers[/{paper_id}]` | Papers with their questions, totals and advice |
+| `PUT .../papers/{paper_id}/questions` | Save the checked questions |
+| `POST .../papers/{paper_id}/confirm`, `.../advice` | Confirm results and write advice; rewrite advice |
+| `DELETE .../papers/{paper_id}` | Delete a paper and its results |
 | `GET /api/ai-keys`, `PUT/DELETE /api/ai-keys/{provider}` | Parent's own AI keys (BYOK) |
 
 ## Tests

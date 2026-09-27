@@ -24,6 +24,7 @@
     <a href="#/alerts" data-page="alerts">Alerts <span id="alert-badge" class="badge" hidden></span></a>
     <a href="#/week" data-page="week">This week</a>
     <a href="#/topics" data-page="topics">Topics</a>
+    <a href="#/papers" data-page="papers">Papers</a>
     <a href="#/advice" data-page="advice">Advice</a>
     <a href="#/ask" data-page="ask">Ask</a>
     <a href="#/settings" data-page="settings">Settings</a>
@@ -129,6 +130,50 @@
     </section>
   </section>
 
+  <!-- Papers: parent uploads a marked paper; AI reads it, parent checks, AI advises -->
+  <section data-view="papers" hidden>
+    <section class="card" id="paper-upload">
+      <h2>Upload a marked paper</h2>
+      <p class="hint">Photos or a PDF of a marked test or homework. The file is read once and not kept;
+        only the results you confirm are saved.</p>
+      <form id="paper-form" class="paper-form">
+        <label>Subject <select id="paper-course" required></select></label>
+        <label>Assignment <select id="paper-assignment" required></select></label>
+        <label id="paper-title-wrap" hidden>Assignment name
+          <input type="text" id="paper-title" maxlength="120" placeholder="e.g. Fractions worksheet"></label>
+        <label>Photos or PDF
+          <input type="file" id="paper-files" accept="image/*,.heic,.heif,application/pdf" multiple required></label>
+        <div id="paper-previews" class="previews"></div>
+        <p class="hint">Up to 10 pages and 15 MB. Reading can take up to a minute.</p>
+        <button class="primary" type="submit" id="paper-read">Read paper</button>
+      </form>
+    </section>
+
+    <section class="card" id="paper-view" hidden>
+      <div class="row">
+        <div><h2 id="paper-heading"></h2><p class="hint" id="paper-sub"></p></div>
+        <button id="paper-close" class="small">Back to papers</button>
+      </div>
+      <div id="paper-view-previews" class="previews"></div>
+      <div id="paper-read-note"></div>
+      <div class="table-wrap"><table class="edit-table">
+        <thead><tr><th>#</th><th>Question</th><th>Answer given</th><th class="num">Marks</th><th class="num">Out of</th><th>Teacher comment</th><th></th></tr></thead>
+        <tbody id="paper-questions"></tbody>
+      </table></div>
+      <div class="row">
+        <button id="paper-add-row" class="small">Add question</button>
+        <b id="paper-total"></b>
+      </div>
+      <div id="paper-actions" class="actions-row"></div>
+      <div id="paper-advice"></div>
+    </section>
+
+    <section class="card" id="paper-list-card">
+      <h2>Uploaded papers</h2>
+      <div id="paper-list"></div>
+    </section>
+  </section>
+
   <!-- Advice: rules pick the cause and flag gaps, AI explains -->
   <section data-view="advice" hidden>
     <section class="card">
@@ -145,6 +190,11 @@
     <section class="card">
       <h2>Homework vs tests</h2>
       <div id="gap"></div>
+    </section>
+    <section class="card">
+      <h2>Advice from uploaded papers</h2>
+      <p class="hint">One entry per assignment, newest first. Each notes when a mistake repeats earlier work.</p>
+      <div id="paper-advice-list"></div>
     </section>
   </section>
 

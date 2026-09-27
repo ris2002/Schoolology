@@ -2,6 +2,7 @@
 
 Messages (a list, oldest first; the system prompt is passed separately):
     {"role": "user", "content": "text"}
+    {"role": "user", "content": [text_part("..."), image_part(jpeg_bytes), ...]}   # with images
     {"role": "assistant", "content": "text or None", "tool_calls": [ToolCall, ...]}
     {"role": "tool", "tool_call_id": "...", "name": "...", "content": "text", "is_error": False}
 
@@ -54,6 +55,16 @@ class LLMResponse:
     provider: str
     model: str
     usage: dict = field(default_factory=dict)
+
+
+def text_part(text: str) -> dict:
+    return {"type": "text", "text": text}
+
+
+def image_part(data: bytes, media_type: str = "image/jpeg") -> dict:
+    """An image inside a user message. JPEG and PNG work with every provider."""
+    import base64
+    return {"type": "image", "media_type": media_type, "data": base64.b64encode(data).decode()}
 
 
 def tool_result(call: ToolCall, content: str, is_error: bool = False) -> dict:

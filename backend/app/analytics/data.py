@@ -47,7 +47,7 @@ def load(conn, child_id: int) -> ChildData:
         assignments=all_rows(
             conn,
             """select id, course_id, category_id, title, due_at, max_points, score, graded_at,
-                      excused, marked_missing, late, teacher_comment
+                      excused, marked_missing, late, teacher_comment, source
                from assignments where child_id = %s order by due_at nulls last, id""",
             (child_id,),
         ),

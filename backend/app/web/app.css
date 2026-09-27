@@ -55,3 +55,23 @@ details summary { cursor: pointer; }
   .msg { max-width: 95%; }
   .topbar-right .child-name { display: none; }
 }
+
+/* Papers */
+.paper-form { display: grid; gap: 12px; max-width: 560px; }
+.paper-form label { display: grid; gap: 4px; font-weight: 600; }
+.paper-form select, .paper-form input[type=file] { font-weight: 400; }
+.previews { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.previews img { height: 120px; border: 1px solid var(--line); border-radius: 6px; object-fit: cover; }
+.previews .file-chip { height: 120px; min-width: 90px; display: grid; place-items: center; padding: 8px; font-size: 12.5px;
+                       border: 1px solid var(--line); border-radius: 6px; color: var(--muted); text-align: center; }
+.edit-table input { width: 100%; min-width: 60px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+                    background: var(--bg); color: var(--text); font: inherit; font-size: 14px; }
+.edit-table td.num input { width: 70px; text-align: right; }
+.edit-table td { padding: 6px; }
+.edit-table td:first-child input { width: 56px; min-width: 56px; }
+.edit-table input:disabled { border-color: transparent; background: transparent; color: var(--text); padding-left: 0; }
+.actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.paper-item { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0;
+              border-bottom: 1px solid var(--line); cursor: pointer; }
+.paper-item:last-child { border-bottom: none; }
+.paper-item:hover b { color: var(--accent); }
