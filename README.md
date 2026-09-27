@@ -48,7 +48,17 @@ Parents never give this app a password. Schoology uses three-legged OAuth 1.0a:
 
 The sign-in page also offers **Try the demo** (`POST /auth/demo`), a sample child with no Schoology needed, while `DEMO_MODE=true`.
 
-The redirect back from Schoology happens in the parent's own browser, but Schoology's firewall refuses return addresses on `localhost` or `127.0.0.1` (HTTP 403). For testing on your own computer, set `PUBLIC_URL=http://lvh.me:8000` and open http://lvh.me:8000. `lvh.me` is a public name that points back to your own machine. A sign-in started on any other name for the server moves to `PUBLIC_URL` first, so the session cookie is where Schoology returns. For a quick test with one real account, a consumer key and secret from that user's `https://<district>.schoology.com/api` page can go in `SCHOOLOGY_CONSUMER_KEY` / `SCHOOLOGY_CONSUMER_SECRET`. It can read only that user's own data.
+The redirect back from Schoology happens in the parent's own browser, but Schoology's firewall refuses return addresses on `localhost` or `127.0.0.1` (HTTP 403). Schoology also refuses to finish an approval that returns to a plain `http://` address ("no valid return URL found"), so local testing needs an `https://` address. A free Cloudflare quick tunnel gives one, with no account needed:
+
+```bash
+# once: download cloudflared into .tools/ (git-ignored), from
+# https://github.com/cloudflare/cloudflared/releases/latest (cloudflared-darwin-arm64.tgz on Apple silicon)
+.tools/cloudflared tunnel --no-autoupdate --url http://localhost:8000
+```
+
+Put the `https://<random>.trycloudflare.com` address it prints into `PUBLIC_URL` in `.env`, restart the server, and open that address. The address changes every time the tunnel restarts. A sign-in started on any other name for the server (e.g. `localhost`) moves to `PUBLIC_URL` first, so the session cookie is where Schoology returns.
+
+If Schoology still lands on its own page after **Approve**, the sign-in page offers **I've approved, finish signing in**, which completes the sign-in without the return trip. For a quick test with one real account, a consumer key and secret from that user's `https://<district>.schoology.com/api` page can go in `SCHOOLOGY_CONSUMER_KEY` / `SCHOOLOGY_CONSUMER_SECRET`. It can read only that user's own data.
 
 > **Before real parents can sign in:** register a developer app in the Schoology App Center and get it approved for the district. Since June 2025, only approved apps can read another user's data, which is what a parent reading their child's grades needs. The Schoology calls marked `UNVERIFIED` in `schoology.py` and `sync.py` still need testing with a real parent account.
 
@@ -104,7 +114,7 @@ cd backend
 ../.venv/bin/uvicorn app.main:app --reload
 ```
 
-- Sign in: http://lvh.me:8000 (or the `PUBLIC_URL` you set)
+- Sign in: your `PUBLIC_URL` (see Sign-in for testing Schoology locally)
 - API docs: http://localhost:8000/docs
 - Admin: http://localhost:8000/admin
 

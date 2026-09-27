@@ -54,9 +54,11 @@ def back_to_sign_in(error: str) -> RedirectResponse:
 
 
 @router.get("/auth/options")
-def options():
+def options(request: Request):
     """What the sign-in page should offer."""
+    pending = request.session.get("oauth")
     return {
+        "pending_sign_in": {"domain": pending["domain"]} if pending else None,
         "schoology_configured": bool(config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET),
         "demo_enabled": config.DEMO_MODE,
         "districts": config.SCHOOLOGY_DISTRICTS,
@@ -74,13 +76,14 @@ def start(request: Request, domain: str = Query(..., description="District Schoo
     domain = domain.strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0]
     if not schoology.is_allowed_domain(domain):
         return back_to_sign_in(f"{domain or 'That address'} is not an allowed Schoology address.")
+    callback_url = f"{config.PUBLIC_URL}/auth/callback"
     try:
-        token, secret = schoology.get_request_token()
+        token, secret = schoology.get_request_token(callback_url)
     except schoology.SchoologyError as e:
         return back_to_sign_in(f"Could not start Schoology sign-in: {e}")
     # The request token secret is kept encrypted in the (signed, not encrypted) session cookie.
     request.session["oauth"] = {"token": token, "secret_enc": crypto.encrypt(secret), "domain": domain}
-    return RedirectResponse(schoology.authorize_url(domain, token, f"{config.PUBLIC_URL}/auth/callback"))
+    return RedirectResponse(schoology.authorize_url(domain, token, callback_url))
 
 
 @router.get("/auth/callback")
@@ -88,12 +91,28 @@ def callback(request: Request, oauth_token: str = Query(...), conn=Depends(get_d
     pending = request.session.pop("oauth", None)
     if not pending or pending["token"] != oauth_token:
         return back_to_sign_in("Sign-in expired or did not start here. Please try again.")
+    return complete_sign_in(request, conn, pending)
+
+
+@router.post("/auth/finish")
+def finish(request: Request, conn=Depends(get_db)):
+    """Finish a sign-in the parent approved on Schoology when Schoology did not send
+    them back (some district SSO setups lose the return address). The request token
+    in the session is exchanged directly; it only works if the parent approved it."""
+    pending = request.session.pop("oauth", None)
+    if not pending:
+        return back_to_sign_in("There is no sign-in waiting to finish. Please start again.")
+    return complete_sign_in(request, conn, pending)
+
+
+def complete_sign_in(request: Request, conn, pending: dict):
     try:
         token, secret = schoology.get_access_token(pending["token"], crypto.decrypt(pending["secret_enc"]))
         client = schoology.SchoologyClient(token, secret)
         me = client.me()
     except schoology.SchoologyError as e:
-        return back_to_sign_in(f"Schoology sign-in failed: {e}")
+        return back_to_sign_in(f"Schoology sign-in failed: {e}. If you did not click Approve on Schoology, "
+                               "please start again.")
 
     uid = str(me.get("uid") or me.get("id"))
     user = one(

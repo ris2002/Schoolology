@@ -88,7 +88,7 @@ def test_callback_without_a_started_sign_in_is_refused(client):
 def test_schoology_sign_in_stores_encrypted_tokens_and_opens_dashboard(client, monkeypatch):
     from app import schoology, sync
 
-    monkeypatch.setattr(schoology, "get_request_token", lambda: ("req-token", "req-secret"))
+    monkeypatch.setattr(schoology, "get_request_token", lambda callback=None: ("req-token", "req-secret"))
     monkeypatch.setattr(schoology, "get_access_token", lambda t, s: ("access-token-123", "access-secret-456"))
     student = {"uid": "555", "name_display": "Sam Student", "primary_email": "sam@example.org", "child_uids": ""}
     monkeypatch.setattr(schoology.SchoologyClient, "me", lambda self: student)
@@ -108,6 +108,26 @@ def test_schoology_sign_in_stores_encrypted_tokens_and_opens_dashboard(client, m
         row = db.one(conn, "select * from users where schoology_uid = '555'")
         assert "access-token-123" not in row["access_token_enc"]
         assert sync.client_for_user(row)._auth.client.resource_owner_key == "access-token-123"
+
+
+def test_approved_sign_in_can_be_finished_without_the_return_trip(client, monkeypatch):
+    from app import schoology
+
+    exchanged = []
+    monkeypatch.setattr(schoology, "get_request_token", lambda callback=None: ("req-token", "req-secret"))
+    monkeypatch.setattr(schoology, "get_access_token",
+                        lambda t, s: exchanged.append((t, s)) or ("access-token", "access-secret"))
+    monkeypatch.setattr(schoology.SchoologyClient, "me",
+                        lambda self: {"uid": "777", "name_display": "Pat Parent", "child_uids": "777"})
+
+    client.get("/auth/start", params={"domain": "district.schoology.com"}, follow_redirects=False)
+    assert client.get("/auth/options").json()["pending_sign_in"] == {"domain": "district.schoology.com"}
+    r = client.post("/auth/finish", follow_redirects=False)
+    assert r.headers["location"] == "/dashboard"
+    assert exchanged == [("req-token", "req-secret")]
+    assert client.get("/api/me").json()["user"]["name"] == "Pat Parent"
+    assert client.get("/auth/options").json()["pending_sign_in"] is None
+    assert client.post("/auth/finish", follow_redirects=False).headers["location"].startswith("/?error=")
 
 
 def test_pages_and_sign_in_options(client):

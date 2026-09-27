@@ -22,6 +22,16 @@
 
   <div id="error" class="banner bad" role="alert" hidden></div>
 
+  <section id="pending" class="card stack" hidden>
+    <h2>Finish signing in</h2>
+    <p>If you clicked <b>Approve</b> on Schoology but ended up on a Schoology page instead of back here,
+      finish signing in now.</p>
+    <form method="post" action="/auth/finish">
+      <button class="primary" type="submit" style="width:100%">I've approved, finish signing in</button>
+    </form>
+    <p class="hint">Didn't approve, or it failed? Start again below.</p>
+  </section>
+
   <section class="card stack">
     <h2>Sign in with Schoology</h2>
     <form id="schoology-form" class="stack">
@@ -72,6 +82,7 @@ fetch("/api/me").then((r) => { if (r.ok) location.replace("/dashboard"); });
 fetch("/auth/options").then((r) => r.json()).then((o) => {
   if (!o.schoology_configured) { $("schoology-button").disabled = true; $("not-configured").hidden = false; }
   $("demo").hidden = !o.demo_enabled;
+  $("pending").hidden = !o.pending_sign_in;
 
   const select = $("district"), saved = store.get("schoology-domain") || "";
   select.replaceChildren(
