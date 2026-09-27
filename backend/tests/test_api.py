@@ -74,6 +74,12 @@ def test_schoology_sign_in_rejects_unlisted_domains(client):
     assert r.status_code == 303 and r.headers["location"].startswith("/?error=")
 
 
+def test_sign_in_started_on_another_host_moves_to_public_url(client, monkeypatch):
+    monkeypatch.setattr(config, "PUBLIC_URL", "http://lvh.me:8000")
+    r = client.get("/auth/start", params={"domain": "irvingisd.schoology.com"}, follow_redirects=False)
+    assert r.headers["location"] == "http://lvh.me:8000/auth/start?domain=irvingisd.schoology.com"
+
+
 def test_callback_without_a_started_sign_in_is_refused(client):
     r = client.get("/auth/callback", params={"oauth_token": "x"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/?error=")

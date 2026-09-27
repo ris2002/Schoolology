@@ -6,7 +6,7 @@ signed session cookie holding the parent's user id.
 """
 
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
@@ -66,6 +66,11 @@ def options():
 
 @router.get("/auth/start")
 def start(request: Request, domain: str = Query(..., description="District Schoology domain, e.g. irvingisd.schoology.com")):
+    # The session cookie must be set on the same host Schoology returns to, so a
+    # sign-in started on another name for this server (e.g. localhost) moves over first.
+    public = urlsplit(config.PUBLIC_URL)
+    if request.url.netloc != public.netloc:
+        return RedirectResponse(f"{config.PUBLIC_URL}/auth/start?{urlencode({'domain': domain})}", status_code=303)
     domain = domain.strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0]
     if not schoology.is_allowed_domain(domain):
         return back_to_sign_in(f"{domain or 'That address'} is not an allowed Schoology address.")
