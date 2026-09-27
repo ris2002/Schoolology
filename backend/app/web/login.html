@@ -26,10 +26,16 @@
     <h2>Sign in with Schoology</h2>
     <form id="schoology-form" class="stack">
       <div>
-        <label for="domain">Your district's Schoology address</label>
-        <input type="text" id="domain" placeholder="yourdistrict.schoology.com" autocomplete="url" required>
-        <p class="hint">The address you use to sign in to Schoology. You'll sign in on Schoology's own page; this app never sees your password.</p>
+        <label for="district">Your school district</label>
+        <select id="district" style="width:100%"></select>
       </div>
+      <div id="other" hidden>
+        <label for="domain">Your district's Schoology address</label>
+        <input type="text" id="domain" placeholder="yourdistrict.schoology.com" autocomplete="url">
+        <p class="hint">Sign in to Schoology as usual, then copy the address from the address bar,
+          e.g. <b>yourdistrict.schoology.com</b>. Not your district's sign-in (SSO) page.</p>
+      </div>
+      <p class="hint">You'll sign in on your district's own page. This app never sees your password.</p>
       <button class="primary" type="submit" id="schoology-button">Continue to Schoology</button>
     </form>
     <p id="not-configured" class="hint" hidden>Schoology sign-in is not set up yet: add SCHOOLOGY_CONSUMER_KEY and SCHOOLOGY_CONSUMER_SECRET to .env and restart the server.</p>
@@ -53,18 +59,37 @@ const store = {
 const error = new URLSearchParams(location.search).get("error");
 if (error) { $("error").textContent = error; $("error").hidden = false; history.replaceState(null, "", "/"); }
 
-$("domain").value = store.get("schoology-domain") || "";
+const OTHER = "__other__";
+function showOther() {
+  const other = $("district").value === OTHER;
+  $("other").hidden = !other;
+  $("domain").required = other;
+}
+$("district").addEventListener("change", showOther);
 
 fetch("/api/me").then((r) => { if (r.ok) location.replace("/dashboard"); });
 
 fetch("/auth/options").then((r) => r.json()).then((o) => {
   if (!o.schoology_configured) { $("schoology-button").disabled = true; $("not-configured").hidden = false; }
   $("demo").hidden = !o.demo_enabled;
+
+  const select = $("district"), saved = store.get("schoology-domain") || "";
+  select.replaceChildren(
+    ...o.districts.map((d) => new Option(d.name, d.domain)),
+    new Option("Other address…", OTHER),
+  );
+  if (o.districts.some((d) => d.domain === saved)) select.value = saved;
+  else if (saved || !o.districts.length) { select.value = OTHER; $("domain").value = saved; }
+  showOther();
 });
 
 $("schoology-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
-  const domain = $("domain").value.trim().replace(/^https?:\/\//, "").split("/")[0];
+  const choice = $("district").value;
+  const domain = choice === OTHER
+    ? $("domain").value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0]
+    : choice;
+  if (!domain) return;
   store.set("schoology-domain", domain);
   location.href = "/auth/start?domain=" + encodeURIComponent(domain);
 });

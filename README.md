@@ -40,7 +40,7 @@ Thresholds are starting values in `backend/app/config.py`, to be tuned in the pi
 
 Parents never give this app a password. Schoology uses three-legged OAuth 1.0a:
 
-1. On the sign-in page (`/`), the parent enters their district's Schoology address, e.g. `irvingisd.schoology.com`. It must match `SCHOOLOGY_ALLOWED_DOMAINS`.
+1. On the sign-in page (`/`), the parent picks their district from a dropdown, or chooses **Other address** and types it. The dropdown comes from `SCHOOLOGY_DISTRICTS` in `.env` (default: Irving ISD and Grand Prairie ISD, whose Schoology login pages name the district). Typed addresses must match `SCHOOLOGY_ALLOWED_DOMAINS`. A district's address is what the browser shows after signing in to Schoology, not the district's SSO page.
 2. `GET /auth/start?domain=...` gets a request token and sends the parent to **their district's own Schoology login page** (which may use district single sign-on).
 3. The parent approves. Schoology returns them to `GET /auth/callback`.
 4. The backend swaps the request token for an access token, stores it **encrypted**, reads the parent and their children (`child_uids`), starts a signed session cookie and opens `/dashboard`. The first visit syncs grades automatically. A student account has no children, so it is shown as its own child.

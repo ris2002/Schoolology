@@ -110,6 +110,7 @@ def test_pages_and_sign_in_options(client):
     assert client.get("/static/styles.css").status_code == 200
     options = client.get("/auth/options").json()
     assert options["demo_enabled"] is True
+    assert {"name": "Irving ISD", "domain": "irvingisd.schoology.com"} in options["districts"]
 
 
 def test_dashboard_returns_every_rule_based_section():

@@ -59,6 +59,7 @@ def options():
     return {
         "schoology_configured": bool(config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET),
         "demo_enabled": config.DEMO_MODE,
+        "districts": config.SCHOOLOGY_DISTRICTS,
         "allowed_domains": config.SCHOOLOGY_ALLOWED_DOMAINS,
     }
 

@@ -41,6 +41,8 @@ def is_allowed_domain(domain: str) -> bool:
     domain = domain.strip().lower()
     if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+", domain):
         return False
+    if any(domain == d["domain"] for d in config.SCHOOLOGY_DISTRICTS):
+        return True
     return any(fnmatch.fnmatch(domain, pattern) for pattern in config.SCHOOLOGY_ALLOWED_DOMAINS)
 
 
