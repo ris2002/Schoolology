@@ -32,6 +32,8 @@ SCHOOLOGY_ALLOWED_DOMAINS = [
     for d in os.getenv("SCHOOLOGY_ALLOWED_DOMAINS", "*.schoology.com").split(",")
     if d.strip()
 ]
+# Schoology due dates have no timezone; they are read in the school's local time.
+SCHOOL_TIMEZONE = os.getenv("SCHOOL_TIMEZONE", "America/Chicago")
 # Schoology access tokens expire 90 days after they are issued.
 SCHOOLOGY_TOKEN_DAYS = 90
 # Ask the parent to reconnect this many days before the token expires.
