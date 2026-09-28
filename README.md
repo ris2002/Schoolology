@@ -37,7 +37,7 @@ Schoology API ──> sync ──> Supabase ──> rule layer (code) ──> AI
 | 3 | Weekly summary | What changed in the last 7 days | Write the update |
 | 4 | Alerts | Missing work, average down 10+, test under 60%, new weak topic | One line and a next step |
 | 5 | Effort or understanding | Score the signals, rules pick the cause | Explain it as a possible reason |
-| 6 | Homework vs test gap | Flag gaps of 20+ points | Explain it neutrally |
+| 6 | Everyday work vs assessments gap | Flag gaps of 20+ points | Explain it neutrally |
 | 7 | Chat | Tools return stored facts | Answer only from those facts |
 
 ### Marked papers (parents)
@@ -50,6 +50,8 @@ On the **Papers** page a parent picks the subject and assignment (or "Not in Sch
 4. The advice appears on the paper and in **Advice from uploaded papers** on the Advice page.
 
 Work that isn't in Schoology is saved as an assignment with `source = 'paper'`. It feeds weak topics and advice, but never course averages. Editing a confirmed paper takes its results out until it is confirmed again, and deleting a paper removes its results.
+
+Grading categories are sorted by whole words in the teacher's category name: **assessments** (test, quiz, exam, assessment, summative, midterm) and **everyday work** (homework, classwork, practice, daily, formative, assignment, performance tasks). Everything else, including standards-based categories such as "High Priority Standards", counts as other. Coppell ISD, for example, grades Performance Tasks and Summative Assessments rather than homework and tests.
 
 Thresholds are starting values in `backend/app/config.py`, to be tuned in the pilot. Not in this build: photo upload, teacher message drafts, multi-language, tutor matching, class scanning.
 

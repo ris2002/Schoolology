@@ -24,6 +24,9 @@ def explain_gap(llm: LLM, child_name: str, gap: dict) -> str:
 
     gap: {"course": "Math 7", "homework_average": 93.3, "test_average": 63.0, "gap": 30.3,
           "flagged": True, "threshold": 20}
+    homework_average is everyday graded work (homework, classwork, practice, performance
+    tasks); test_average is assessments (tests, quizzes, summatives). Parents see them as
+    "Everyday work" and "Assessments", so use those words.
 
     Must: stay neutral and never suggest cheating or copying. A gap has many
     innocent explanations (test anxiety, help at home, timed conditions, topics

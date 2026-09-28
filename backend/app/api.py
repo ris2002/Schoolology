@@ -151,7 +151,7 @@ def refresh_alerts(child=Depends(child_for_user), user=Depends(current_user), co
                    "days": changes.ALERT_LOOKBACK_DAYS},
         "rules_checked": {
             "missing_work": "assignments the teacher marked missing, due inside the window",
-            "low_test_score": f"tests or quizzes below {t['alert_low_test_score']}%, graded inside the window",
+            "low_test_score": f"one assessment (test, quiz or summative) below {t['alert_low_test_score']}%, graded inside the window",
             "average_drop": f"a course average down {t['alert_average_drop']}+ points over the last 7 days",
             "new_weak_topic": f"a topic that reached {t['weak_topic_min_assignments']}+ assignments inside the window",
         },

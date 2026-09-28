@@ -11,6 +11,7 @@ const CAUSES = {
 };
 const STATUS = { graded: "Graded", missing: "Missing", awaiting_grade: "Awaiting grade", upcoming: "Upcoming", excused: "Excused" };
 const PROVIDERS = { huggingface: "Hugging Face", anthropic: "Claude" };
+const KIND_LABELS = { homework: "Everyday work", test: "Assessment", other: "Other" };
 const SUGGESTIONS = [
   "What is missing right now?",
   "Which subject needs the most help?",
@@ -156,7 +157,7 @@ async function loadOverview() {
 
   const cats = $("categories");
   if (!d.categories.length) emptyRow(cats, 4, "No grading categories.");
-  else cats.replaceChildren(...d.categories.map((c) => el("tr", {}, [td(c.course), td(c.title), td(c.kind), td(num(c.weight), "num")])));
+  else cats.replaceChildren(...d.categories.map((c) => el("tr", {}, [td(c.course), td(c.title), td(KIND_LABELS[c.kind]), td(num(c.weight), "num")])));
 }
 
 function renderCourses() {
@@ -304,12 +305,12 @@ async function loadAdvice() {
   $("cause-explanation").replaceChildren(aiBlock(advice.explanation, advice.ai_error));
 
   if (!gap.courses.length) {
-    $("gap").replaceChildren(el("p", { class: "empty", text: "Needs both homework and test grades in a course. Categories the app can't identify as homework or tests are left out." }));
+    $("gap").replaceChildren(el("p", { class: "empty", text: "Needs grades for both everyday work and assessments in a course. Categories that are neither (for example standards-based ones) are left out." }));
     return;
   }
   const table = el("table", {}, [
-    el("thead", {}, el("tr", {}, [el("th", { text: "Course" }), el("th", { class: "num", text: "Homework" }),
-      el("th", { class: "num", text: "Tests" }), el("th", { class: "num", text: "Gap" })])),
+    el("thead", {}, el("tr", {}, [el("th", { text: "Course" }), el("th", { class: "num", text: "Everyday work" }),
+      el("th", { class: "num", text: "Assessments" }), el("th", { class: "num", text: "Gap" })])),
     el("tbody", {}, gap.courses.map((g) => el("tr", {}, [td(g.course), td(num(g.homework_average), "num"), td(num(g.test_average), "num"),
       el("td", { class: "num" }, g.flagged ? el("span", { class: "chip warn", text: String(g.gap) }) : String(g.gap))]))),
   ]);
@@ -317,7 +318,7 @@ async function loadAdvice() {
     el("p", { text: g.course, class: "hint" }), aiBlock(g.explanation, g.ai_error),
   ]));
   $("gap").replaceChildren(el("div", { class: "table-wrap" }, table),
-    el("p", { class: "hint", text: `Highlighted when homework is ${gap.courses[0].threshold}+ points above tests.` }), ...explained);
+    el("p", { class: "hint", text: `Everyday work is homework, classwork and performance tasks; assessments are tests, quizzes and summatives. Highlighted when everyday work is ${gap.courses[0].threshold}+ points above assessments.` }), ...explained);
 }
 
 // ---------- Papers (AI reads, parent checks, AI advises) ----------

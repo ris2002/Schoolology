@@ -6,12 +6,24 @@ from datetime import datetime
 from .db import one
 
 
+# Whole words only, so "Contest" or "Community" never match "test" or "unit".
+ASSESSMENT_WORDS = re.compile(r"\b(tests?|quiz(zes)?|exams?|assessments?|summatives?|midterms?)\b")
+EVERYDAY_WORDS = re.compile(
+    r"\b(homework|hw|practice|classwork|daily|formative|assignments?|performance|performance tasks?)\b")
+
+
 def category_kind(title: str) -> str:
-    """Normalise a teacher's grading category name to homework, test or other."""
+    """Normalise a teacher's grading category name.
+
+    Stored as 'test' (assessments: tests, quizzes, summatives) or 'homework' (everyday
+    graded work: homework, classwork, practice, and Coppell-style "Performance Tasks"),
+    else 'other'. Standards-based categories ("High Priority Standards") describe what is
+    assessed, not the kind of work, so they stay 'other'.
+    """
     t = title.lower()
-    if re.search(r"test|quiz|exam|assessment|summative|unit", t):
+    if ASSESSMENT_WORDS.search(t):
         return "test"
-    if re.search(r"homework|\bhw\b|practice|classwork|daily|formative|assignment", t):
+    if EVERYDAY_WORDS.search(t):
         return "homework"
     return "other"
 

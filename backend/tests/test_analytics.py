@@ -249,3 +249,14 @@ def test_demo_data_shows_the_intended_patterns(monkeypatch):
     assert "Dividing fractions" in [t["topic"] for t in facts.weak["topics"] if t["flagged"]]
     assert facts.overview["missing"], "demo should have missing homework"
     assert facts.overview["upcoming"], "demo should have upcoming work"
+
+
+@pytest.mark.parametrize("title, kind", [
+    ("Summatives", "test"), ("Summative Assessments", "test"), ("Tests and Quizzes", "test"), ("Unit Test", "test"),
+    ("Performance Tasks", "homework"), ("Performance", "homework"), ("Classwork", "homework"), ("Homework", "homework"),
+    ("High Priority Standards", "other"), ("Other Standards", "other"), ("AP Score", "other"),
+    ("REGIONAL CONTEST", "other"), ("Community Service", "other"), ("LOCAL COMPETITION", "other"),
+])
+def test_category_kinds_match_whole_words(title, kind):
+    from app.store import category_kind
+    assert category_kind(title) == kind
