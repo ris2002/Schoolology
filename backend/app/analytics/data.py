@@ -22,13 +22,22 @@ class ChildData:
         cat = self.category_by_id.get(assignment.get("category_id"))
         return cat["kind"] if cat else "other"
 
+    def category_title(self, assignment: dict) -> str | None:
+        cat = self.category_by_id.get(assignment.get("category_id"))
+        return cat["title"] if cat else None
+
     def course_title(self, assignment: dict) -> str:
         return self.course_by_id[assignment["course_id"]]["title"]
 
 
 def load(conn, child_id: int) -> ChildData:
     return ChildData(
-        courses=all_rows(conn, "select id, title from courses where child_id = %s order by title", (child_id,)),
+        courses=all_rows(
+            conn,
+            """select id, title, official_grade, official_grade_label from courses
+               where child_id = %s order by title""",
+            (child_id,),
+        ),
         categories=all_rows(
             conn,
             """select c.id, c.course_id, c.title, c.kind, c.weight from categories c
@@ -38,7 +47,7 @@ def load(conn, child_id: int) -> ChildData:
         assignments=all_rows(
             conn,
             """select id, course_id, category_id, title, due_at, max_points, score, graded_at,
-                      excused, marked_missing, late, teacher_comment
+                      excused, marked_missing, late, teacher_comment, source
                from assignments where child_id = %s order by due_at nulls last, id""",
             (child_id,),
         ),

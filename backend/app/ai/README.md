@@ -10,6 +10,8 @@ Each file here has one or two empty functions. Their docstrings say exactly what
 | `alerts.py` | `explain_alerts` | 4 Alert explanations |
 | `advice.py` | `explain_cause`, `explain_gap` | 5 Advice, 6 Gap explanation |
 | `agent.py` | `answer` | 7 Chat agent |
+| `papers.py` | `read_marked_paper` | Read a marked paper from page images (vision) |
+| `papers.py` | `write_assignment_advice` | Advice for one uploaded assignment, aware of earlier ones |
 
 A suggested order: `prompts.py` → `advice.py` (one call, text out) → `summary.py` → `alerts.py` → `topics.py` (structured output) → `agent.py` (tool loop).
 
@@ -36,6 +38,11 @@ r.stop          # "end", "tool_use" or "max_tokens"
 
 # Structured output: pass a JSON Schema, get parsed JSON back
 data = llm.json(system, prompt, schema={"type": "object", "properties": {...}, "required": [...]})
+
+# Images (for reading papers): one user message with the instructions and every page
+from ..llm import image_part, text_part
+r = llm.chat(system, [{"role": "user", "content": [text_part("Read this marked paper."), *[image_part(p) for p in pages]]}],
+             json_schema=schema)
 
 # Tools (for the agent)
 r = llm.chat(system, messages, tools=tools.definitions)

@@ -7,6 +7,11 @@ from .. import config
 from .data import ChildData
 
 
+# The labeller's answer when a mark has too little detail to name a skill
+# (e.g. "Graded item (Summatives)"). Such marks are counted, never shown as a topic.
+UNKNOWN_TOPIC = "unknown"
+
+
 def normalise(topic: str) -> str:
     return " ".join(topic.lower().split())
 
@@ -20,10 +25,13 @@ def weak_topics(data: ChildData) -> dict:
     """
     minimum = config.THRESHOLDS["weak_topic_min_assignments"]
     groups: dict[str, dict] = {}
-    unlabelled = 0
+    unlabelled = unknown = 0
     for m in data.lost_marks:
         if not m["topic"]:
             unlabelled += 1
+            continue
+        if normalise(m["topic"]) == UNKNOWN_TOPIC:
+            unknown += 1
             continue
         a = data.assignment_by_id.get(m["assignment_id"])
         if a is None:
@@ -62,4 +70,4 @@ def weak_topics(data: ChildData) -> dict:
             ],
         })
     topics.sort(key=lambda t: (not t["flagged"], -t["points_lost"]))
-    return {"threshold": minimum, "unlabelled_marks": unlabelled, "topics": topics}
+    return {"threshold": minimum, "unlabelled_marks": unlabelled, "unknown_marks": unknown, "topics": topics}

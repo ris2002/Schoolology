@@ -13,3 +13,6 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# Local tools (e.g. cloudflared for HTTPS tunnels)
+.tools/

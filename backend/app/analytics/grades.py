@@ -4,7 +4,9 @@ Rules:
 - Excused work never counts. Work the teacher marked missing counts as zero,
   as it does in the Schoology gradebook.
 - A course average uses category weights when the teacher set them, otherwise
-  total points earned over total points possible.
+  total points earned over total points possible. When Schoology reports its own
+  grade for the course, the overview shows that instead, since weights can be
+  hidden from the signed-in account.
 - Only work the teacher marked missing is "missing". Past-due work with no
   grade yet is "awaiting grade", so parents are not alarmed by slow grading.
 """
@@ -16,6 +18,9 @@ from .data import ChildData
 
 
 def counts_toward_grade(a: dict) -> bool:
+    # Work known only from an uploaded paper never changes the school's averages.
+    if a.get("source") == "paper":
+        return False
     return not a["excused"] and bool(a["max_points"]) and (a["score"] is not None or a["marked_missing"])
 
 
@@ -87,6 +92,7 @@ def assignment_ref(data: ChildData, a: dict, now: datetime) -> dict:
         "assignment_id": a["id"],
         "title": a["title"],
         "course": data.course_title(a),
+        "category": data.category_title(a),
         "kind": data.kind(a),
         "due_at": a["due_at"],
         "status": status(a, now),
@@ -95,6 +101,7 @@ def assignment_ref(data: ChildData, a: dict, now: datetime) -> dict:
         "percent": percent(a),
         "late": a["late"],
         "teacher_comment": a["teacher_comment"],
+        "source": a.get("source", "schoology"),
     }
 
 
@@ -111,10 +118,16 @@ def overview(data: ChildData, now: datetime) -> dict:
         avg = course_average(data, c["id"])
         avg_7 = course_average(data, c["id"], now - timedelta(days=7))
         avg_14 = course_average(data, c["id"], now - timedelta(days=14))
+        official = c.get("official_grade")
         courses.append({
             "course_id": c["id"],
             "title": c["title"],
-            "average": avg,
+            # Schoology's own grade when it reports one; changes stay on the calculated scale
+            # so "then" and "now" are measured the same way.
+            "average": official if official is not None else avg,
+            "average_source": "schoology" if official is not None else ("calculated" if avg is not None else None),
+            "official_grade_label": c.get("official_grade_label"),
+            "calculated_average": avg,
             "average_7_days_ago": avg_7,
             "average_14_days_ago": avg_14,
             "change_7_days": _change(avg, avg_7),

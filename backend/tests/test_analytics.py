@@ -87,6 +87,15 @@ def test_trend_compares_with_work_known_a_week_ago():
     assert row["change_7_days"] == -20.0
 
 
+def test_overview_prefers_schoologys_official_grade():
+    c = {**course(), "official_grade": 88.4, "official_grade_label": "2027M1"}
+    cat = category(c["id"], "test")
+    data = ChildData([c], [cat], [assignment(c["id"], cat["id"], 80)])
+    row = grades.overview(data, NOW)["courses"][0]
+    assert row["average"] == 88.4 and row["average_source"] == "schoology"
+    assert row["calculated_average"] == 80.0
+
+
 def test_gap_flagged_at_threshold():
     c = course()
     hw, test = category(c["id"], "homework"), category(c["id"], "test")
@@ -96,6 +105,15 @@ def test_gap_flagged_at_threshold():
 
 
 # --- weak topics ---
+
+def test_unknown_topic_is_counted_but_never_becomes_a_topic():
+    c = course()
+    cat = category(c["id"], "test")
+    items = [assignment(c["id"], cat["id"], 70, days_ago=d) for d in (20, 10, 2)]
+    marks = [lost(a["id"], "Unknown") for a in items] + [lost(items[0]["id"], " unknown ")]
+    result = topics.weak_topics(ChildData([c], [cat], items, marks))
+    assert result["topics"] == [] and result["unknown_marks"] == 4
+
 
 def test_topic_flagged_only_across_three_assignments():
     c = course()
@@ -240,3 +258,14 @@ def test_demo_data_shows_the_intended_patterns(monkeypatch):
     assert "Dividing fractions" in [t["topic"] for t in facts.weak["topics"] if t["flagged"]]
     assert facts.overview["missing"], "demo should have missing homework"
     assert facts.overview["upcoming"], "demo should have upcoming work"
+
+
+@pytest.mark.parametrize("title, kind", [
+    ("Summatives", "test"), ("Summative Assessments", "test"), ("Tests and Quizzes", "test"), ("Unit Test", "test"),
+    ("Performance Tasks", "homework"), ("Performance", "homework"), ("Classwork", "homework"), ("Homework", "homework"),
+    ("High Priority Standards", "other"), ("Other Standards", "other"), ("AP Score", "other"),
+    ("REGIONAL CONTEST", "other"), ("Community Service", "other"), ("LOCAL COMPETITION", "other"),
+])
+def test_category_kinds_match_whole_words(title, kind):
+    from app.store import category_kind
+    assert category_kind(title) == kind

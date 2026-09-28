@@ -4,9 +4,12 @@ AI-backed fields come with an `ai_error` alongside them. Rule-based facts are
 always returned, even when the AI part is not implemented yet or fails.
 """
 
+from datetime import timedelta
+
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from . import analytics, llm, services, settings, sync
+from . import analytics, config, llm, services, settings, sync
+from .analytics import changes, grades
 from .auth import child_for_user, connection_status, current_user
 from .db import all_rows, get_db, one
 from .schoology import SchoologyAuthError, SchoologyError
@@ -29,7 +32,11 @@ def _model(conn, user) -> tuple[llm.LLM | None, str | None]:
 def me(user=Depends(current_user), conn=Depends(get_db)):
     ai = settings.get(conn)
     return {
-        "user": {"id": user["id"], "name": user["name"], "is_demo": user["is_demo"]},
+        "user": {
+            "id": user["id"], "name": user["name"], "email": user["email"], "is_demo": user["is_demo"],
+            "schoology_uid": user["schoology_uid"], "district_domain": user["district_domain"],
+            "signed_in_since": user["last_login_at"],
+        },
         "schoology": connection_status(user),
         "children": all_rows(
             conn, "select id, name, grade_level, last_synced_at from children where user_id = %s order by name",
@@ -50,6 +57,28 @@ def sync_now(user=Depends(current_user), conn=Depends(get_db)):
             raise HTTPException(502, str(e)) from e
     children = all_rows(conn, "select * from children where user_id = %s", (user["id"],))
     return {str(c["id"]): services.refresh_child(conn, user, c) for c in children}
+
+
+@router.get("/children/{child_id}/dashboard")
+def dashboard(child=Depends(child_for_user), conn=Depends(get_db)):
+    """Everything the rule layer calculates for one child, in one response. No AI."""
+    facts = _facts(conn, child)
+    data = facts.data
+    refs = [grades.assignment_ref(data, a, facts.now) for a in data.assignments]
+    refs.sort(key=lambda r: r["due_at"] or facts.now, reverse=True)
+    return analytics.jsonable({
+        "child": {k: child[k] for k in ("id", "name", "grade_level", "last_synced_at")},
+        "overview": facts.overview,
+        "categories": [
+            {"course": data.course_by_id[c["course_id"]]["title"], "title": c["title"], "kind": c["kind"],
+             "weight": c["weight"]}
+            for c in sorted(data.categories, key=lambda c: (c["course_id"], c["title"]))
+        ],
+        "assignments": refs,
+        "gap": facts.gap,
+        "cause": facts.cause,
+        "weak_topics": facts.weak,
+    })
 
 
 @router.get("/children/{child_id}/overview")
@@ -107,9 +136,29 @@ def list_alerts(child=Depends(child_for_user), conn=Depends(get_db)):
 
 @router.post("/children/{child_id}/alerts/refresh")
 def refresh_alerts(child=Depends(child_for_user), user=Depends(current_user), conn=Depends(get_db)):
+    """Run the alert rules now. The reply says what was checked, so an empty result is explained."""
     model, model_error = _model(conn, user)
-    new = services.refresh_alerts(conn, model, child, _facts(conn, child))
-    return {"new_alerts": len(new), "ai_error": model_error}
+    facts = _facts(conn, child)
+    new = services.refresh_alerts(conn, model, child, facts)
+    t = config.THRESHOLDS
+    counts = one(conn, """select count(*) as total, count(*) filter (where message is null) as without_message
+                          from alerts where child_id = %s""", (child["id"],))
+    return analytics.jsonable({
+        "new_alerts": len(new),
+        "total_alerts": counts["total"],
+        "alerts_without_message": counts["without_message"],
+        "window": {"from": facts.now - timedelta(days=changes.ALERT_LOOKBACK_DAYS), "to": facts.now,
+                   "days": changes.ALERT_LOOKBACK_DAYS},
+        "rules_checked": {
+            "missing_work": "assignments the teacher marked missing, due inside the window",
+            "low_test_score": f"one assessment (test, quiz or summative) below {t['alert_low_test_score']}%, graded inside the window",
+            "average_drop": f"a course average down {t['alert_average_drop']}+ points over the last 7 days",
+            "new_weak_topic": f"a topic that reached {t['weak_topic_min_assignments']}+ assignments inside the window",
+        },
+        "note": None if new or counts["total"] else "Nothing matched the rules in this window, so there are no alerts.",
+        # Why messages are empty: the AI feature isn't written yet, or no AI key is set.
+        "ai_error": model_error,
+    })
 
 
 @router.post("/children/{child_id}/alerts/{alert_id}/read")

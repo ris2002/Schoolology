@@ -6,12 +6,24 @@ from datetime import datetime
 from .db import one
 
 
+# Whole words only, so "Contest" or "Community" never match "test" or "unit".
+ASSESSMENT_WORDS = re.compile(r"\b(tests?|quiz(zes)?|exams?|assessments?|summatives?|midterms?)\b")
+EVERYDAY_WORDS = re.compile(
+    r"\b(homework|hw|practice|classwork|daily|formative|assignments?|performance|performance tasks?)\b")
+
+
 def category_kind(title: str) -> str:
-    """Normalise a teacher's grading category name to homework, test or other."""
+    """Normalise a teacher's grading category name.
+
+    Stored as 'test' (assessments: tests, quizzes, summatives) or 'homework' (everyday
+    graded work: homework, classwork, practice, and Coppell-style "Performance Tasks"),
+    else 'other'. Standards-based categories ("High Priority Standards") describe what is
+    assessed, not the kind of work, so they stay 'other'.
+    """
     t = title.lower()
-    if re.search(r"test|quiz|exam|assessment|summative|unit", t):
+    if ASSESSMENT_WORDS.search(t):
         return "test"
-    if re.search(r"homework|\bhw\b|practice|classwork|daily|formative|assignment", t):
+    if EVERYDAY_WORDS.search(t):
         return "homework"
     return "other"
 
@@ -38,6 +50,11 @@ def upsert_course(conn, child_id: int, ext_id: str, title: str) -> int:
         (child_id, ext_id, title),
     )
     return row["id"]
+
+
+def set_official_grade(conn, course_id: int, grade: float | None, label: str | None) -> None:
+    conn.execute("update courses set official_grade = %s, official_grade_label = %s where id = %s",
+                 (grade, label, course_id))
 
 
 def upsert_category(conn, course_id: int, ext_id: str, title: str, weight: float | None) -> int:
@@ -118,6 +135,12 @@ def upsert_lost_mark(
         (child_id, assignment_id, granularity, ref, question_text, student_answer, teacher_comment,
          points_possible, points_lost),
     )
+
+
+def has_question_marks(conn, assignment_id: int) -> bool:
+    """True when a confirmed paper gave question-level marks for this assignment."""
+    return one(conn, "select exists(select 1 from lost_marks where assignment_id = %s and granularity = 'question') as x",
+               (assignment_id,))["x"]
 
 
 def remove_lost_mark(conn, assignment_id: int, ref: str) -> None:

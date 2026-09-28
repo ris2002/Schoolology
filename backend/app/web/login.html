@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Parent Insight</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/styles.css">
+<style>
+  main { max-width: 440px; padding-top: 12vh; }
+  .brand { margin-bottom: 20px; }
+  .or { text-align: center; color: var(--muted); margin: 16px 0; font-size: 13px; }
+  form button { width: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">
+    <h1>Parent Insight</h1>
+    <p class="muted">See how your child is doing at school, and why.</p>
+  </div>
+
+  <div id="error" class="banner bad" role="alert" hidden></div>
+
+  <section id="pending" class="card stack" hidden>
+    <h2>Finish signing in</h2>
+    <p>If you clicked <b>Approve</b> on Schoology but ended up on a Schoology page instead of back here,
+      finish signing in now.</p>
+    <form method="post" action="/auth/finish">
+      <button class="primary" type="submit" style="width:100%">I've approved, finish signing in</button>
+    </form>
+    <p class="hint">Didn't approve, or it failed? Start again below.</p>
+  </section>
+
+  <section class="card stack">
+    <h2>Sign in with Schoology</h2>
+    <form id="schoology-form" class="stack">
+      <div>
+        <label for="district">Your school district</label>
+        <select id="district" style="width:100%"></select>
+      </div>
+      <div id="other" hidden>
+        <label for="domain">Your district's Schoology address</label>
+        <input type="text" id="domain" placeholder="yourdistrict.schoology.com" autocomplete="url">
+        <p class="hint">Sign in to Schoology as usual, then copy the address from the address bar,
+          e.g. <b>yourdistrict.schoology.com</b>. Not your district's sign-in (SSO) page.</p>
+      </div>
+      <p class="hint">You'll sign in on your district's own page. This app never sees your password.</p>
+      <button class="primary" type="submit" id="schoology-button">Continue to Schoology</button>
+    </form>
+    <p id="not-configured" class="hint" hidden>Schoology sign-in is not set up yet: add SCHOOLOGY_CONSUMER_KEY and SCHOOLOGY_CONSUMER_SECRET to .env and restart the server.</p>
+  </section>
+
+  <section id="personal" class="card stack" hidden>
+    <h2>Developer sign-in</h2>
+    <p class="hint">Signs in directly as the owner of the personal Schoology API key in <code>.env</code>.
+      Only available on this computer.</p>
+    <form method="post" action="/auth/personal-key">
+      <button type="submit" style="width:100%">Sign in with the personal API key</button>
+    </form>
+  </section>
+
+  <div id="demo" hidden>
+    <div class="or">or</div>
+    <section class="card">
+      <button id="demo-button" style="width:100%">Try the demo with a sample child</button>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+const error = new URLSearchParams(location.search).get("error");
+if (error) { $("error").textContent = error; $("error").hidden = false; history.replaceState(null, "", "/"); }
+
+const OTHER = "__other__";
+function showOther() {
+  const other = $("district").value === OTHER;
+  $("other").hidden = !other;
+  $("domain").required = other;
+}
+$("district").addEventListener("change", showOther);
+
+fetch("/api/me").then((r) => { if (r.ok) location.replace("/dashboard"); });
+
+fetch("/auth/options").then((r) => r.json()).then((o) => {
+  if (!o.schoology_configured) { $("schoology-button").disabled = true; $("not-configured").hidden = false; }
+  $("demo").hidden = !o.demo_enabled;
+  $("pending").hidden = !o.pending_sign_in;
+  $("personal").hidden = !o.personal_key_sign_in;
+
+  const select = $("district"), saved = store.get("schoology-domain") || "";
+  select.replaceChildren(
+    ...o.districts.map((d) => new Option(d.name, d.domain)),
+    new Option("Other address…", OTHER),
+  );
+  if (o.districts.some((d) => d.domain === saved)) select.value = saved;
+  else if (saved || !o.districts.length) { select.value = OTHER; $("domain").value = saved; }
+  showOther();
+});
+
+$("schoology-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const choice = $("district").value;
+  const domain = choice === OTHER
+    ? $("domain").value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0]
+    : choice;
+  if (!domain) return;
+  store.set("schoology-domain", domain);
+  location.href = "/auth/start?domain=" + encodeURIComponent(domain);
+});
+
+$("demo-button").addEventListener("click", async () => {
+  $("demo-button").disabled = true;
+  const r = await fetch("/auth/demo", { method: "POST" });
+  if (r.ok) location.href = "/dashboard";
+  else { $("error").textContent = "Demo sign-in failed."; $("error").hidden = false; $("demo-button").disabled = false; }
+});
+</script>
+</body>
+</html>

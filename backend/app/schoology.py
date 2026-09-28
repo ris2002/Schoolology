@@ -41,10 +41,12 @@ def is_allowed_domain(domain: str) -> bool:
     domain = domain.strip().lower()
     if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+", domain):
         return False
+    if any(domain == d["domain"] for d in config.SCHOOLOGY_DISTRICTS):
+        return True
     return any(fnmatch.fnmatch(domain, pattern) for pattern in config.SCHOOLOGY_ALLOWED_DOMAINS)
 
 
-def _auth(token: str | None = None, secret: str | None = None) -> OAuth1:
+def _auth(token: str | None = None, secret: str | None = None, callback: str | None = None) -> OAuth1:
     if not (config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET):
         raise SchoologyError("SCHOOLOGY_CONSUMER_KEY and SCHOOLOGY_CONSUMER_SECRET are not set")
     return OAuth1(
@@ -52,6 +54,7 @@ def _auth(token: str | None = None, secret: str | None = None) -> OAuth1:
         client_secret=config.SCHOOLOGY_CONSUMER_SECRET,
         resource_owner_key=token,
         resource_owner_secret=secret,
+        callback_uri=callback,
         realm=REALM,
     )
 
@@ -66,8 +69,12 @@ def _token_pair(resp: requests.Response) -> tuple[str, str]:
         raise SchoologyError("Schoology returned an unexpected token response") from e
 
 
-def get_request_token() -> tuple[str, str]:
-    resp = requests.get(f"{config.SCHOOLOGY_API_BASE}/oauth/request_token", auth=_auth(), timeout=TIMEOUT)
+def get_request_token(callback_url: str | None = None) -> tuple[str, str]:
+    # The callback goes here as well as on the authorize URL: a district SSO
+    # round trip can drop the authorize URL's query, and with it the callback.
+    resp = requests.get(
+        f"{config.SCHOOLOGY_API_BASE}/oauth/request_token", auth=_auth(callback=callback_url), timeout=TIMEOUT
+    )
     return _token_pair(resp)
 
 
@@ -132,6 +139,9 @@ class SchoologyClient:
     def sections(self, uid: str) -> list[dict]:
         """UNVERIFIED for parent tokens: the child's course sections."""
         return self.get(f"/users/{uid}/sections").get("section") or []
+
+    def section(self, section_id: str) -> dict:
+        return self.get(f"/sections/{section_id}")
 
     def grades(self, uid: str) -> list[dict]:
         """UNVERIFIED for parent tokens: grades per section, with category ids and comments."""

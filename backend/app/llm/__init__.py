@@ -2,6 +2,7 @@
 
     llm = llm_for_user(conn, user)            # provider, model and key chosen for you
     r = llm.chat(system, messages, tools=..., json_schema=..., max_tokens=...)
+    r = llm.chat(system, [{"role": "user", "content": [text_part("..."), image_part(jpeg)]}])  # vision
     data = llm.json(system, prompt, schema)   # one-shot structured output, parsed
 
 Which provider and model: the admin panel. Which key: the parent's own key if
@@ -21,6 +22,8 @@ from .types import (
     LLMRefusal,
     LLMResponse,
     ToolCall,
+    image_part,
+    text_part,
     tool_result,
 )
 
@@ -92,5 +95,5 @@ def llm_for_user(conn, user: dict | None) -> LLM:
 
 __all__ = [
     "LLM", "LLMBadOutput", "LLMError", "LLMNotConfigured", "LLMRefusal", "LLMResponse", "ToolCall",
-    "build", "llm_for_user", "resolve_key", "tool_result",
+    "build", "image_part", "llm_for_user", "resolve_key", "text_part", "tool_result",
 ]

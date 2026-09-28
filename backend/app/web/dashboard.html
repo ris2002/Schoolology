@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parent Insight</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/styles.css">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#/ask">Parent Insight</a>
+    <div class="topbar-right">
+      <select id="child-picker" aria-label="Child" hidden></select>
+      <span id="child-name" class="child-name"></span>
+      <button id="sync" class="small">Sync</button>
+      <button id="logout" class="small">Sign out</button>
+    </div>
+  </div>
+  <nav class="tabs-nav" aria-label="Sections">
+    <a href="#/ask" data-page="ask">Ask</a>
+    <a href="#/overview" data-page="overview">Overview</a>
+    <a href="#/alerts" data-page="alerts">Alerts <span id="alert-badge" class="badge" hidden></span></a>
+    <a href="#/week" data-page="week">This week</a>
+    <a href="#/topics" data-page="topics">Topics</a>
+    <a href="#/papers" data-page="papers">Papers</a>
+    <a href="#/advice" data-page="advice">Advice</a>
+    <a href="#/settings" data-page="settings">Settings</a>
+  </nav>
+</header>
+
+<main>
+  <div id="reconnect" class="banner bad" hidden>
+    <span id="reconnect-text"></span> <a href="/">Sign in with Schoology again</a>.
+  </div>
+  <div id="message" class="banner" role="status" hidden></div>
+  <p id="no-children" class="card empty" hidden>No children are linked to this Schoology account.</p>
+
+  <!-- Overview: everything calculated by code -->
+  <section data-view="overview" hidden>
+    <div class="tiles">
+      <div class="tile"><span class="hint">Likely cause</span><b id="tile-cause">–</b></div>
+      <div class="tile"><span class="hint">Missing work</span><b id="tile-missing">–</b></div>
+      <div class="tile"><span class="hint">Handed in late</span><b id="tile-late">–</b></div>
+      <div class="tile"><span class="hint">Due in 7 days</span><b id="tile-upcoming">–</b></div>
+    </div>
+
+    <section class="card">
+      <div class="row"><h2>Courses</h2><span class="hint" id="synced"></span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Course</th><th class="num">Average</th><th class="num">7 days</th><th class="num">14 days</th>
+          <th class="num">Missing</th><th class="num">Late</th><th class="num">Awaiting grade</th></tr></thead>
+        <tbody id="courses"></tbody>
+      </table></div>
+      <p class="hint">Averages are Schoology's own grade for the current grading period. "calc." marks averages
+        calculated from graded work because Schoology reported none. 7 and 14 day changes are calculated.</p>
+      <label class="hint"><input type="checkbox" id="show-empty-courses"> Show courses with no grades</label>
+    </section>
+
+    <div class="grid2">
+      <section class="card"><h2>Missing work</h2><ul class="list" id="missing"></ul></section>
+      <section class="card"><h2>Due in the next 7 days</h2><ul class="list" id="upcoming"></ul></section>
+    </div>
+    <div class="spacer"></div>
+
+    <section class="card">
+      <div class="row">
+        <h2>All assignments</h2>
+        <div class="filters">
+          <select id="filter-course" aria-label="Course"></select>
+          <select id="filter-status" aria-label="Status">
+            <option value="">Any status</option><option value="graded">Graded</option><option value="missing">Missing</option>
+            <option value="late">Late</option><option value="awaiting_grade">Awaiting grade</option>
+            <option value="upcoming">Upcoming</option><option value="excused">Excused</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Assignment</th><th>Course</th><th>Category</th><th>Due</th><th class="num">Score</th><th>Status</th><th>Teacher comment</th></tr></thead>
+        <tbody id="assignments"></tbody>
+      </table></div>
+      <p class="hint" id="assignment-count"></p>
+    </section>
+
+    <section class="card">
+      <h2>Grading categories</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Course</th><th>Category</th><th>Counted as</th><th class="num">Weight</th></tr></thead>
+        <tbody id="categories"></tbody>
+      </table></div>
+    </section>
+  </section>
+
+  <!-- Alerts: rules raise them, AI writes the line -->
+  <section data-view="alerts" hidden>
+    <section class="card">
+      <div class="row">
+        <div><h2>Alerts</h2><p class="hint">Raised by fixed rules when new data arrives. Each alert fires once.</p></div>
+        <button id="alerts-refresh" class="small">Check for new alerts</button>
+      </div>
+      <ul class="alert-list" id="alert-list"></ul>
+    </section>
+  </section>
+
+  <!-- This week: code finds the changes, AI writes the update -->
+  <section data-view="week" hidden>
+    <section class="card">
+      <div class="row">
+        <div><h2>This week</h2><p class="hint">A short update on what changed in the last 7 days.</p></div>
+        <button id="week-generate" class="small primary">Write this week's summary</button>
+      </div>
+      <div id="week-current"></div>
+    </section>
+    <section class="card">
+      <h2>Earlier weeks</h2>
+      <div id="week-history"></div>
+    </section>
+  </section>
+
+  <!-- Topics: AI labels lost marks, code counts and flags them -->
+  <section data-view="topics" hidden>
+    <section class="card">
+      <div class="row">
+        <div><h2>Weak topics</h2><p class="hint" id="topics-hint"></p></div>
+        <button id="topics-label" class="small" hidden>Label lost marks now</button>
+      </div>
+      <div id="topics"></div>
+    </section>
+  </section>
+
+  <!-- Papers: parent uploads a marked paper; AI reads it, parent checks, AI advises -->
+  <section data-view="papers" hidden>
+    <section class="card" id="paper-upload">
+      <h2>Upload a marked paper</h2>
+      <p class="hint">Photos or a PDF of a marked test or homework. The file is read once and not kept;
+        only the results you confirm are saved.</p>
+      <form id="paper-form" class="paper-form">
+        <label>Subject <select id="paper-course" required></select></label>
+        <label>Assignment <select id="paper-assignment" required></select></label>
+        <label id="paper-title-wrap" hidden>Assignment name
+          <input type="text" id="paper-title" maxlength="120" placeholder="e.g. Fractions worksheet"></label>
+        <label>Photos or PDF
+          <input type="file" id="paper-files" accept="image/*,.heic,.heif,application/pdf" multiple required></label>
+        <div id="paper-previews" class="previews"></div>
+        <p class="hint">Up to 10 pages and 15 MB. Reading can take up to a minute.</p>
+        <button class="primary" type="submit" id="paper-read">Read paper</button>
+      </form>
+    </section>
+
+    <section class="card" id="paper-view" hidden>
+      <div class="row">
+        <div><h2 id="paper-heading"></h2><p class="hint" id="paper-sub"></p></div>
+        <button id="paper-close" class="small">Back to papers</button>
+      </div>
+      <div id="paper-view-previews" class="previews"></div>
+      <div id="paper-read-note"></div>
+      <div class="table-wrap"><table class="edit-table">
+        <thead><tr><th>#</th><th>Question</th><th>Answer given</th><th class="num">Marks</th><th class="num">Out of</th><th>Teacher comment</th><th></th></tr></thead>
+        <tbody id="paper-questions"></tbody>
+      </table></div>
+      <div class="row">
+        <button id="paper-add-row" class="small">Add question</button>
+        <b id="paper-total"></b>
+      </div>
+      <div id="paper-actions" class="actions-row"></div>
+      <div id="paper-advice"></div>
+    </section>
+
+    <section class="card" id="paper-list-card">
+      <h2>Uploaded papers</h2>
+      <div id="paper-list"></div>
+    </section>
+  </section>
+
+  <!-- Advice: rules pick the cause and flag gaps, AI explains -->
+  <section data-view="advice" hidden>
+    <section class="card">
+      <h2>Effort or understanding</h2>
+      <p class="cause-label" id="cause"></p>
+      <p id="suggestion"></p>
+      <div id="cause-explanation"></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Course</th><th>Looks like</th><th class="num">Missing or late</th><th class="num">Done work avg</th><th class="num">Assessment avg</th><th>Weak topics</th></tr></thead>
+        <tbody id="cause-courses"></tbody>
+      </table></div>
+      <p class="hint">Picked by fixed rules from the numbers above. It is a possible reason, not a diagnosis.</p>
+    </section>
+    <section class="card">
+      <h2>Everyday work vs assessments</h2>
+      <div id="gap"></div>
+    </section>
+    <section class="card">
+      <h2>Advice from uploaded papers</h2>
+      <p class="hint">One entry per assignment, newest first. Each notes when a mistake repeats earlier work.</p>
+      <div id="paper-advice-list"></div>
+    </section>
+  </section>
+
+  <!-- Ask: the chat agent answers only from the child's data -->
+  <section data-view="ask" hidden>
+    <section class="card chat">
+      <div class="row">
+        <div><h2>Ask about <span class="child-name-inline"></span></h2>
+          <p class="hint">Answers come only from the school data above, with the source named.</p></div>
+        <button id="chat-clear" class="small">Clear</button>
+      </div>
+      <div id="chat-log" class="chat-log" aria-live="polite"></div>
+      <div id="chat-suggestions" class="chips"></div>
+      <form id="chat-form" class="chat-form">
+        <input type="text" id="chat-input" placeholder="Ask a question…" autocomplete="off" maxlength="2000">
+        <button class="primary" type="submit" id="chat-send">Ask</button>
+      </form>
+    </section>
+  </section>
+
+  <!-- Settings -->
+  <section data-view="settings" hidden>
+    <section class="card">
+      <h2>Account</h2>
+      <p id="profile-name"></p>
+      <p class="muted" id="profile-line"></p>
+      <p><span id="connection" class="chip"></span></p>
+    </section>
+    <section class="card" id="keys-card" hidden>
+      <h2>Your own AI key</h2>
+      <p class="hint">Optional. If you add your own key, your questions and summaries use it instead of the app's.
+        Keys are stored encrypted.</p>
+      <div id="keys"></div>
+    </section>
+  </section>
+</main>
+
+<div id="sync-overlay" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="sync-overlay-text" hidden>
+  <div class="overlay-box">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="sync-overlay-text">Syncing with Schoology…</p>
+    <p class="hint">This can take up to a minute. Please keep this page open.</p>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

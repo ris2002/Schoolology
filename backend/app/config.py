@@ -32,6 +32,26 @@ SCHOOLOGY_ALLOWED_DOMAINS = [
     for d in os.getenv("SCHOOLOGY_ALLOWED_DOMAINS", "*.schoology.com").split(",")
     if d.strip()
 ]
+# Districts offered in the sign-in page's dropdown: "Name=domain,Name=domain".
+# Their domains are always allowed, even outside SCHOOLOGY_ALLOWED_DOMAINS.
+# Defaults are addresses whose login page names the district (checked Sept 2026).
+SCHOOLOGY_DISTRICTS = [
+    {"name": name.strip(), "domain": domain.strip().lower()}
+    for name, _, domain in (
+        entry.partition("=")
+        for entry in os.getenv(
+            "SCHOOLOGY_DISTRICTS",
+            "Coppell ISD=schoology.coppellisd.com,Irving ISD=irvingisd.schoology.com,Grand Prairie ISD=gpisd.schoology.com",
+        ).split(",")
+    )
+    if name.strip() and domain.strip()
+]
+# Developer only: sign in directly as the owner of SCHOOLOGY_CONSUMER_KEY when it is a
+# personal key from <district>/api (two-legged OAuth, no approval page). Works only for
+# requests made on this computer. Never enable on a public server.
+SCHOOLOGY_PERSONAL_KEY_SIGN_IN = _bool("SCHOOLOGY_PERSONAL_KEY_SIGN_IN", False)
+# Paper uploads a parent may make per day. Reading a paper is the most expensive AI call.
+PAPER_UPLOADS_PER_DAY = int(os.getenv("PAPER_UPLOADS_PER_DAY", "10"))
 # Schoology due dates have no timezone; they are read in the school's local time.
 SCHOOL_TIMEZONE = os.getenv("SCHOOL_TIMEZONE", "America/Chicago")
 # Schoology access tokens expire 90 days after they are issued.
