@@ -206,7 +206,9 @@ def test_alerts_fire_once(monkeypatch):
                         lambda model, name, alerts: {a["dedupe_key"]: "Explained." for a in alerts})
     c, child_id = demo_client()
     first = c.post(f"/api/children/{child_id}/alerts/refresh").json()
-    assert first["new_alerts"] > 0
+    assert first["new_alerts"] > 0 and first["total_alerts"] == first["new_alerts"]
+    assert first["window"]["days"] == 14 and set(first["rules_checked"]) == {
+        "missing_work", "low_test_score", "average_drop", "new_weak_topic"}
     assert c.post(f"/api/children/{child_id}/alerts/refresh").json()["new_alerts"] == 0
     alerts = c.get(f"/api/children/{child_id}/alerts").json()
     assert all(a["message"] == "Explained." for a in alerts)
