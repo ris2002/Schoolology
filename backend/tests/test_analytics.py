@@ -106,6 +106,15 @@ def test_gap_flagged_at_threshold():
 
 # --- weak topics ---
 
+def test_unknown_topic_is_counted_but_never_becomes_a_topic():
+    c = course()
+    cat = category(c["id"], "test")
+    items = [assignment(c["id"], cat["id"], 70, days_ago=d) for d in (20, 10, 2)]
+    marks = [lost(a["id"], "Unknown") for a in items] + [lost(items[0]["id"], " unknown ")]
+    result = topics.weak_topics(ChildData([c], [cat], items, marks))
+    assert result["topics"] == [] and result["unknown_marks"] == 4
+
+
 def test_topic_flagged_only_across_three_assignments():
     c = course()
     cat = category(c["id"], "test")
