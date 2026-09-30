@@ -239,12 +239,19 @@ function updateBadge(alerts) {
 // ---------- This week (AI summary) ----------
 
 async function loadWeek() {
-  const summaries = await api(childUrl("/summaries"));
+  let summaries = await api(childUrl("/summaries"));
+  let error = null;
+  if (!(summaries[0] && isThisWeek(summaries[0].week_start))) {
+    // A new week with no summary yet: write it now. Without force this never replaces an existing one.
+    $("week-current").replaceChildren(el("div", { class: "ai missing", text: "Writing this week's summary…" }));
+    error = (await api(childUrl("/summaries/generate"), { method: "POST" })).error;
+    summaries = await api(childUrl("/summaries"));
+  }
   const [latest, ...older] = summaries;
   const thisWeek = latest && isThisWeek(latest.week_start);
   $("week-current").replaceChildren(thisWeek
     ? aiBlock(latest.text, null, `Week of ${date(latest.week_start)}`)
-    : el("p", { class: "empty", text: "No summary for this week yet. Summaries are written once a week, or press the button." }));
+    : aiBlock(null, error, "This week's summary", "write the weekly summary"));
   $("week-generate").textContent = thisWeek ? "Rewrite this week's summary" : "Write this week's summary";
   const history = thisWeek ? older : summaries;
   $("week-history").replaceChildren(...(history.length

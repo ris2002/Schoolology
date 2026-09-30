@@ -28,7 +28,7 @@ def explain_cause(llm: LLM, child_name: str, facts: dict) -> str:
 
 
 
-    raise NotImplementedError
+
 
 
 def explain_gap(llm: LLM, child_name: str, gap: dict) -> str:
@@ -50,4 +50,4 @@ def explain_gap(llm: LLM, child_name: str, gap: dict) -> str:
     response=llm.chat(GAP_EXPLAINER,messages)
     return response.text
 
-    raise NotImplementedError
+
