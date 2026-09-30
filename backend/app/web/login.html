@@ -7,7 +7,10 @@
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/static/styles.css">
 <style>
+  body { background: radial-gradient(900px 420px at 50% -8%, var(--accent-soft), transparent 70%), var(--bg); min-height: 100vh; }
   main { max-width: 440px; padding-top: 12vh; }
+  .brand h1 { display: flex; align-items: center; gap: 10px; font-size: 26px; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 10px; flex: none; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
   .brand { margin-bottom: 20px; }
   .or { text-align: center; color: var(--muted); margin: 16px 0; font-size: 13px; }
   form button { width: 100%; }
@@ -16,7 +19,7 @@
 <body>
 <main>
   <div class="brand">
-    <h1>Parent Insight</h1>
+    <h1><span class="brand-mark" aria-hidden="true"></span>Parent Insight</h1>
     <p class="muted">See how your child is doing at school, and why.</p>
   </div>
 
