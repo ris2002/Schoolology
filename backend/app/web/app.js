@@ -35,6 +35,19 @@ function el(tag, attrs = {}, children = []) {
   return n;
 }
 const td = (text, cls) => el("td", { text: text ?? "–", class: cls });
+// Each course keeps one colour everywhere. Distinct colours are handed out in name order,
+// so two courses of one child never share a colour (until there are more than ten).
+const COURSE_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#f43f5e", "#a855f7", "#14b8a6", "#f97316", "#84cc16", "#ec4899"];
+let courseColors = new Map();
+function setCourseColors(names) {
+  courseColors = new Map([...new Set(names.filter(Boolean))].sort().map((n, i) => [n, COURSE_COLORS[i % COURSE_COLORS.length]]));
+}
+function courseDot(name) {
+  const dot = el("span", { class: "course-dot" });
+  dot.style.background = courseColors.get(name) || "var(--muted)";
+  return dot;
+}
+const courseCell = (name) => el("td", {}, el("span", { class: "course-cell" }, [courseDot(name), el("span", { text: name ?? "–" })]));
 const num = (v, suffix = "") => (v === null || v === undefined ? "–" : `${v}${suffix}`);
 const pct = (r) => (r === null || r === undefined ? "–" : Math.round(r * 100) + "%");
 // Date-only values ("2026-09-28") are read at local noon so they never shift to the previous day.
@@ -138,6 +151,7 @@ async function dashboard(force = false) {
 async function loadOverview() {
   const d = await dashboard();
   const o = d.overview;
+  setCourseColors([...o.courses.map((c) => c.title), ...d.assignments.map((a) => a.course)]);
   $("synced").textContent = "Last synced " + when(d.child.last_synced_at);
   $("tile-cause").textContent = CAUSES[d.cause.cause];
   $("tile-missing").textContent = o.missing.length;
@@ -145,7 +159,7 @@ async function loadOverview() {
   $("tile-upcoming").textContent = o.upcoming.length;
   renderCourses();
 
-  const item = (a) => el("li", {}, [el("span", { text: a.title }), el("span", { class: "hint", text: ` · ${a.course} · due ${date(a.due_at)}` })]);
+  const item = (a) => el("li", {}, [courseDot(a.course), el("span", { text: a.title }), el("span", { class: "hint", text: ` · ${a.course} · due ${date(a.due_at)}` })]);
   $("missing").replaceChildren(...(o.missing.length ? o.missing.map(item) : [el("li", { class: "empty", text: "Nothing missing." })]));
   $("upcoming").replaceChildren(...(o.upcoming.length ? o.upcoming.map(item) : [el("li", { class: "empty", text: "Nothing due." })]));
 
@@ -157,7 +171,7 @@ async function loadOverview() {
 
   const cats = $("categories");
   if (!d.categories.length) emptyRow(cats, 4, "No grading categories.");
-  else cats.replaceChildren(...d.categories.map((c) => el("tr", {}, [td(c.course), td(c.title), td(KIND_LABELS[c.kind]), td(num(c.weight), "num")])));
+  else cats.replaceChildren(...d.categories.map((c) => el("tr", {}, [courseCell(c.course), td(c.title), td(KIND_LABELS[c.kind]), td(num(c.weight), "num")])));
 }
 
 function renderCourses() {
@@ -167,7 +181,7 @@ function renderCourses() {
   const body = $("courses");
   if (!rows.length) { emptyRow(body, 7, "No graded courses yet. Try Sync."); return; }
   body.replaceChildren(...rows.map((c) => el("tr", {}, [
-    td(c.title),
+    courseCell(c.title),
     el("td", { class: "num", title: c.average_source === "schoology"
       ? "Schoology's grade" + (c.official_grade_label ? " for " + c.official_grade_label : "") : "Calculated from graded work" },
       [num(c.average), c.average_source === "calculated" ? el("span", { class: "hint", text: " calc." }) : null]),
@@ -180,13 +194,25 @@ function renderAssignments() {
   const d = state.dash;
   const course = $("filter-course").value, status = $("filter-status").value;
   const rows = d.assignments.filter((a) => (!course || a.course === course) && (!status || (status === "late" ? a.late : a.status === status)));
+  if (state.dueSort) {
+    // Earliest or latest first; work with no due date always goes last.
+    const dir = state.dueSort === "asc" ? 1 : -1;
+    const time = (a) => (a.due_at ? toDate(a.due_at).getTime() : null);
+    rows.sort((x, y) => {
+      const a = time(x), b = time(y);
+      if (a === null || b === null) return (a === null) - (b === null);
+      return (a - b) * dir;
+    });
+  }
+  $("sort-due-arrow").textContent = { asc: "↑", desc: "↓" }[state.dueSort] || "↕";
+  $("due-header").setAttribute("aria-sort", { asc: "ascending", desc: "descending" }[state.dueSort] || "none");
   const body = $("assignments");
   if (!rows.length) emptyRow(body, 7, "No assignments match.");
   else body.replaceChildren(...rows.map((a) => {
-    const chips = [el("span", { class: "chip " + ({ missing: "bad", graded: "ok", awaiting_grade: "warn" }[a.status] || ""), text: STATUS[a.status] })];
+    const chips = [el("span", { class: "chip " + ({ missing: "bad", graded: "ok", awaiting_grade: "warn", upcoming: "info" }[a.status] || ""), text: STATUS[a.status] })];
     if (a.late) chips.push(" ", el("span", { class: "chip warn", text: "Late" }));
     const score = a.score === null ? "–" : `${a.score}/${a.max_points}` + (a.percent !== null ? ` (${a.percent}%)` : "");
-    return el("tr", {}, [td(a.title), td(a.course), td(a.category), td(date(a.due_at), "nowrap"), td(score, "num"),
+    return el("tr", {}, [td(a.title), courseCell(a.course), td(a.category), td(date(a.due_at), "nowrap"), td(score, "num"),
       el("td", {}, chips), td(a.teacher_comment || "")]);
   }));
   $("assignment-count").textContent = `${rows.length} of ${d.assignments.length} assignments`;
@@ -302,7 +328,7 @@ async function loadAdvice() {
   $("suggestion").hidden = cause.cause === "on_track";  // nothing to do, so the verdict says it all
   $("cause-explanation").replaceChildren(el("div", { class: "ai missing", text: "Writing an explanation…" }));
   $("cause-courses").replaceChildren(...cause.courses.filter((c) => c.assignments_counted).map((c) => el("tr", {}, [
-    td(c.course), el("td", {}, el("span", { class: "chip " + (c.cause === "on_track" ? "ok" : "warn"), text: CAUSES[c.cause] })),
+    courseCell(c.course), el("td", {}, el("span", { class: "chip " + (c.cause === "on_track" ? "ok" : "warn"), text: CAUSES[c.cause] })),
     td(pct(c.missing_or_late_rate), "num"), td(num(c.completed_average), "num"), td(num(c.test_average), "num"),
     td(c.weak_topics.join(", ") || "–"),
   ])));
@@ -641,6 +667,10 @@ function wire() {
   $("show-empty-courses").addEventListener("change", renderCourses);
   $("filter-course").addEventListener("change", renderAssignments);
   $("filter-status").addEventListener("change", renderAssignments);
+  $("sort-due").addEventListener("click", () => {
+    state.dueSort = state.dueSort === "asc" ? "desc" : "asc";
+    renderAssignments();
+  });
   $("alerts-refresh").addEventListener("click", async (ev) => {
     busy(ev.target, true, "Checking…");
     try {

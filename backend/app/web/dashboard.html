@@ -11,7 +11,7 @@
 <body>
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="#/ask">Parent Insight</a>
+    <a class="brand" href="#/ask"><span class="brand-mark" aria-hidden="true"></span>Parent Insight</a>
     <div class="topbar-right">
       <select id="child-picker" aria-label="Child" hidden></select>
       <span id="child-name" class="child-name"></span>
@@ -41,10 +41,10 @@
   <!-- Overview: everything calculated by code -->
   <section data-view="overview" hidden>
     <div class="tiles">
-      <div class="tile"><span class="hint">Likely cause</span><b id="tile-cause">–</b></div>
-      <div class="tile"><span class="hint">Missing work</span><b id="tile-missing">–</b></div>
-      <div class="tile"><span class="hint">Handed in late</span><b id="tile-late">–</b></div>
-      <div class="tile"><span class="hint">Due in 7 days</span><b id="tile-upcoming">–</b></div>
+      <div class="tile t-cause"><span class="hint">Likely cause</span><b id="tile-cause">–</b></div>
+      <div class="tile t-missing"><span class="hint">Missing work</span><b id="tile-missing">–</b></div>
+      <div class="tile t-late"><span class="hint">Handed in late</span><b id="tile-late">–</b></div>
+      <div class="tile t-upcoming"><span class="hint">Due in 7 days</span><b id="tile-upcoming">–</b></div>
     </div>
 
     <section class="card">
@@ -78,7 +78,7 @@
         </div>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Assignment</th><th>Course</th><th>Category</th><th>Due</th><th class="num">Score</th><th>Status</th><th>Teacher comment</th></tr></thead>
+        <thead><tr><th>Assignment</th><th>Course</th><th>Category</th><th id="due-header"><button type="button" class="th-sort" id="sort-due">Due <span id="sort-due-arrow" aria-hidden="true">↕</span></button></th><th class="num">Score</th><th>Status</th><th>Teacher comment</th></tr></thead>
         <tbody id="assignments"></tbody>
       </table></div>
       <p class="hint" id="assignment-count"></p>
