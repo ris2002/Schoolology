@@ -19,6 +19,7 @@ PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
 DEMO_MODE = _bool("DEMO_MODE", True)
 TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+CRON_SECRET = os.getenv("CRON_SECRET", "")  # lets a scheduler call /cron/<job>; unset turns those routes off
 
 # Supabase Postgres
 DATABASE_URL = os.getenv("DATABASE_URL", "")

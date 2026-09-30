@@ -114,7 +114,9 @@ ALERT_EXPLAINER = """The Alerts are nothing but summary of child performance if 
                    11]Use the child's name you are given. Your function receives the real name as child_name, so remember to include it in the message you send
                    12]Return one message for every alert, keyed by its dedupe_key, copied exactly.Each message ends with one simple thing the parent can do.
                    13]Strictly do not and never be alarming or dramatic   
-                   14]mention dates only, not times 
+                   14]mention dates only, not times
+                   15]Write one line per alert and nothing else, in exactly this form:
+                      <dedupe_key>: <message>
                """
 
 
