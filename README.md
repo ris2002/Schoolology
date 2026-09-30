@@ -89,7 +89,9 @@ A personal key can read its owner's own data directly (two-legged OAuth, no appr
 2. Put them in `SCHOOLOGY_CONSUMER_KEY` / `SCHOOLOGY_CONSUMER_SECRET` and set `SCHOOLOGY_PERSONAL_KEY_SIGN_IN=true`.
 3. Restart the server and open http://localhost:8000. A **Developer sign-in** button appears.
 
-The button works only for requests made on the same computer, never through a tunnel or proxy, because it signs in as the key's owner without any approval. Never enable it on a public server.
+The button works only for requests made on the same computer, never through a tunnel or proxy, because it signs in as the key's owner without any approval.
+
+On a server (e.g. Render), sign in at `/admin` first, then open the sign-in page: the button appears for that browser only. Anyone else still gets no button. The key owner's data is then protected by `ADMIN_PASSWORD` alone, so make it long and unique, and turn `SCHOOLOGY_PERSONAL_KEY_SIGN_IN` off when you no longer need it.
 
 ### What a real account returned (Coppell ISD student, Sept 2026)
 
