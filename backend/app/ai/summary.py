@@ -1,8 +1,8 @@
 """Feature 3: the weekly summary."""
 
 from ..llm import LLM
-
-
+import json
+from .prompts import WEEKLY_SUMMARY
 def write_weekly_summary(llm: LLM, child_name: str, facts: dict) -> str:
     """Return a short weekly update for the parent (plain text, under ~150 words).
 
@@ -22,4 +22,10 @@ def write_weekly_summary(llm: LLM, child_name: str, facts: dict) -> str:
     Must: quote only numbers present in facts; lead with what matters most;
     say plainly when it was a quiet week.
     """
+
+    data={"child_name":child_name,**facts}
+    content=json.dumps(data)
+    messages=[{"role":"user","content":content}]
+    response=llm.chat(WEEKLY_SUMMARY,messages)
+    return response.text
     raise NotImplementedError
