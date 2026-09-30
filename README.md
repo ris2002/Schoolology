@@ -166,6 +166,14 @@ Run from `backend/`, e.g. with cron:
 | `python -m app.jobs weekly` | Once a week | Write and email weekly summaries |
 | `python -m app.jobs cleanup-demo` | Daily | Delete demo sign-ins older than a day |
 
+Or, when the scheduler can only call a URL (cron-job.org, GitHub Actions, a host without a shell), set `CRON_SECRET` in `.env` and call:
+
+```bash
+curl -X POST https://your-app/cron/sync -H "Authorization: Bearer $CRON_SECRET"
+```
+
+`/cron/sync`, `/cron/weekly` and `/cron/cleanup-demo` reply `202` straight away and run the job in the server. One job runs at a time (`409` while one is busy). Without `CRON_SECRET` the routes are off. `GET /healthz` is a cheap page for uptime checks.
+
 ## API
 
 All child routes check that the child belongs to the signed-in parent. AI-backed fields come with an `ai_error`, so the rule-based facts are always returned even when an AI feature is missing or failing.
