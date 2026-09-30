@@ -49,7 +49,8 @@ SCHOOLOGY_DISTRICTS = [
 ]
 # Developer only: sign in directly as the owner of SCHOOLOGY_CONSUMER_KEY when it is a
 # personal key from <district>/api (two-legged OAuth, no approval page). Works only for
-# requests made on this computer. Never enable on a public server.
+# requests made on this computer, or after signing in at /admin. On a public server the
+# key owner's data is then protected by ADMIN_PASSWORD alone, so make it long and unique.
 SCHOOLOGY_PERSONAL_KEY_SIGN_IN = _bool("SCHOOLOGY_PERSONAL_KEY_SIGN_IN", False)
 # Paper uploads a parent may make per day. Reading a paper is the most expensive AI call.
 PAPER_UPLOADS_PER_DAY = int(os.getenv("PAPER_UPLOADS_PER_DAY", "10"))

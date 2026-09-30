@@ -80,10 +80,11 @@ def is_local_request(request: Request) -> bool:
 
 
 def personal_key_available(request: Request) -> bool:
+    """Only from this computer, or on a server after signing in at /admin (ADMIN_PASSWORD)."""
     return (
         config.SCHOOLOGY_PERSONAL_KEY_SIGN_IN
         and bool(config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET)
-        and is_local_request(request)
+        and (is_local_request(request) or bool(request.session.get("admin")))
     )
 
 
