@@ -1,7 +1,8 @@
 """Features 5 and 6: explain the likely cause, and the homework vs test gap."""
 
 from ..llm import LLM
-
+from .prompts import GAP_EXPLAINER,CAUSE_EXPLAINER
+import json
 
 def explain_cause(llm: LLM, child_name: str, facts: dict) -> str:
     """Explain the cause the rules picked, and the suggestion, as a possible reason.
@@ -15,7 +16,18 @@ def explain_cause(llm: LLM, child_name: str, facts: dict) -> str:
 
     Must: never change the cause the rules picked; show the evidence (the numbers
     behind it); word it as "this may mean"; never blame the child. 80-150 words.
+
+
     """
+    data={"child_name":child_name,**facts}
+    content=json.dumps(data)
+    messages=[{'role':'user','content':content}]
+    response=llm.chat(CAUSE_EXPLAINER,messages)
+    return response.text
+
+
+
+
     raise NotImplementedError
 
 
@@ -32,4 +44,10 @@ def explain_gap(llm: LLM, child_name: str, gap: dict) -> str:
     innocent explanations (test anxiety, help at home, timed conditions, topics
     that only appear on tests). 40-80 words.
     """
+    data={"child_name":child_name,**gap}
+    content=json.dumps(data)
+    messages=[{'role':'user','content':content}]
+    response=llm.chat(GAP_EXPLAINER,messages)
+    return response.text
+
     raise NotImplementedError

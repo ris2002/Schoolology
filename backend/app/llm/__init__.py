@@ -36,7 +36,7 @@ class LLM:
     model: str
     key_source: str  # "app" or "byok"
     _impl: object
-
+# here the 'system' param in this functiomn means prompts
     def chat(
         self,
         system: str,
