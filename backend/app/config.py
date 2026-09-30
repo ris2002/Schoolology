@@ -78,7 +78,7 @@ SMTP_FROM = os.getenv("SMTP_FROM", "")
 # Rule thresholds. Starting examples from the plan, to be tuned in the pilot.
 THRESHOLDS = {
     "weak_topic_min_assignments": 3,  # topic missed in 3+ assignments is flagged
-    "gap_points": 20,  # homework avg minus test avg
+    "gap_points": 10,  # homework avg minus test avg
     "alert_average_drop": 10,  # course average down 10+ points in a week
     "alert_low_test_score": 60,  # a test or quiz graded below this percent
     "weekly_grade_move": 3,  # grade move worth mentioning in the weekly summary

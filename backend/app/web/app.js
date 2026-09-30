@@ -292,6 +292,7 @@ async function loadAdvice() {
   const cause = (await dashboard()).cause;
   $("cause").textContent = CAUSES[cause.cause];
   $("suggestion").textContent = cause.suggestion;
+  $("suggestion").hidden = cause.cause === "on_track";  // nothing to do, so the verdict says it all
   $("cause-explanation").replaceChildren(el("div", { class: "ai missing", text: "Writing an explanation…" }));
   $("cause-courses").replaceChildren(...cause.courses.filter((c) => c.assignments_counted).map((c) => el("tr", {}, [
     td(c.course), el("td", {}, el("span", { class: "chip " + (c.cause === "on_track" ? "ok" : "warn"), text: CAUSES[c.cause] })),
