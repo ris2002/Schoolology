@@ -131,6 +131,15 @@ def sync_child(conn, child: dict, client: SchoologyClient) -> dict:
             except SchoologyError:
                 log.info("Graded section %s is not readable; skipping", section_id)
 
+    # The same course can appear as two sections: one whose assignment list is readable,
+    # and a hidden one that holds the grades but refuses its list (seen with Coppell ISD).
+    # Read every list first, so a graded assignment keeps its real title and due date.
+    listings = {sid: _optional(client.assignments, sid) for sid in sections}
+    known = {str(a["id"]): a for items in listings.values() if items for a in items}
+    graded_in = {aid: sid for sid, sec in grades_by_section.items()
+                 for period in sec.get("period") or [] for g in period.get("assignment") or []
+                 for aid in [str(g.get("assignment_id"))]}
+
     for section in sections.values():
         section_id = str(section["id"])
         title = section.get("course_title") or section.get("section_title") or f"Section {section_id}"
@@ -156,10 +165,16 @@ def sync_child(conn, child: dict, client: SchoologyClient) -> dict:
             )
             category_titles[str(cat["id"])] = cat.get("title") or "Other"
 
-        assignments = _optional(client.assignments, section_id) or []
+        # An assignment graded under another section is saved with that section instead.
+        assignments = [a for a in listings.get(section_id) or []
+                       if graded_in.get(str(a["id"]), section_id) == section_id]
         listed = {str(a["id"]) for a in assignments}
         for ext_id, g in grades.items():
-            if ext_id not in listed:
+            if ext_id in listed:
+                continue
+            if ext_id in known:
+                assignments.append(known[ext_id])
+            else:
                 category = category_titles.get(str(g.get("category_id") or ""))
                 assignments.append({
                     "id": ext_id,
