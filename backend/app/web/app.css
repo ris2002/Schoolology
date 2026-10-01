@@ -66,6 +66,16 @@ details summary { cursor: pointer; }
 }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chips button { border-radius: 999px; font-size: 13.5px; padding: 6px 12px; }
+/* Suggested questions: tinted, with the course's colour dot */
+.chips button.suggestion { display: inline-flex; align-items: center; text-align: left; padding: 8px 14px;
+                           background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 25%, var(--line)); }
+.chips button.suggestion:hover { border-color: var(--accent); color: var(--accent); }
+/* The empty chat */
+.chat-welcome { text-align: center; max-width: 520px; margin: 12px auto 4px; padding: 8px 12px; }
+.chat-welcome .brand-mark { display: block; width: 40px; height: 40px; border-radius: 12px; margin: 0 auto 12px;
+                            background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.chat-welcome h3 { margin: 0 0 6px; font-size: 18px; }
+.chat-welcome p { color: var(--muted); }
 .chat-form { display: flex; gap: 8px; }
 .chat-form input { flex: 1; min-width: 0; }
 .key-row { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }

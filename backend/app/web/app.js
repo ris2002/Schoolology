@@ -14,6 +14,7 @@ const CAUSES = {
 const STATUS = { graded: "Graded", missing: "Missing", awaiting_grade: "Awaiting grade", upcoming: "Upcoming", excused: "Excused" };
 const PROVIDERS = { huggingface: "Hugging Face", anthropic: "Claude" };
 const KIND_LABELS = { homework: "Everyday work", test: "Assessment", other: "Other" };
+// Used when the child's data is not loaded, or does not suggest enough questions of its own.
 const SUGGESTIONS = [
   "What is missing right now?",
   "Which subject needs the most help?",
@@ -618,10 +619,64 @@ async function loadPaperAdvice() {
 // ---------- Ask (chat agent) ----------
 
 async function loadChat() {
-  const history = await api(childUrl("/chat"));
-  $("chat-log").replaceChildren(...history.map(chatBubble));
-  renderSuggestions(history.length === 0);
+  const [history, d] = await Promise.all([api(childUrl("/chat")), dashboard().catch(() => null)]);
+  if (d) setCourseColors([...d.overview.courses.map((c) => c.title), ...d.assignments.map((a) => a.course)]);
+  state.chatSuggestions = d ? suggestedQuestions(d) : SUGGESTIONS.map((text) => ({ text }));
+  state.asked = new Set(history.filter((m) => m.role === "user").map((m) => m.text.trim().toLowerCase()));
+  $("chat-log").replaceChildren(...(history.length ? history.map(chatBubble) : [chatWelcome(d)]));
+  renderSuggestions(true);
   scrollChat();
+}
+
+// "PHYSICS 1 AP A" reads better as "Physics 1 AP A"; short codes like AP, IB and III stay as they are.
+function niceCourse(name) {
+  if (!name || name !== name.toUpperCase()) return name;
+  return name.replace(/^\d\d\s*-\s*\d\d\s+/, "")
+    .replace(/[A-Z][A-Z]+/g, (w) => (w.length <= 3 ? w : w[0] + w.slice(1).toLowerCase()));
+}
+const firstName = (d) => (d?.child?.name || "your child").split(" ")[0];
+const shorten = (t, n = 42) => (t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t);
+
+// Questions about this child's own data, most pressing first. Each may name a course for its colour dot.
+function suggestedQuestions(d) {
+  const o = d.overview, name = firstName(d), out = [];
+  const add = (text, course) => { if (!out.some((q) => q.text === text)) out.push({ text, course }); };
+
+  const drops = o.courses.filter((c) => c.change_7_days !== null && c.change_7_days <= -3)
+    .sort((a, b) => a.change_7_days - b.change_7_days);
+  if (drops[0]) add(`Why did ${niceCourse(drops[0].title)} drop ${Math.abs(drops[0].change_7_days)} points this week?`, drops[0].title);
+
+  if (o.missing.length === 1) add(`What's missing in ${niceCourse(o.missing[0].course)}?`, o.missing[0].course);
+  else if (o.missing.length > 1) add(`What work is missing, and what should we do first?`);
+
+  const test = o.upcoming.find((a) => a.kind === "test");
+  if (test) add(`How can ${name} prepare for “${shorten(test.title)}”?`, test.course);
+  if (o.upcoming.length) add(`What's due this week?`);
+
+  const weak = (d.weak_topics.topics || []).find((t) => t.flagged);
+  if (weak) add(`How can I help ${name} with ${weak.topic.toLowerCase()}?`);
+
+  const attention = d.cause.courses_needing_attention || [];
+  if (d.cause.cause !== "on_track" && attention[0]) add(`Is ${niceCourse(attention[0])} about effort or understanding?`, attention[0]);
+  if (o.late.length) add(`Which work was handed in late?`);
+
+  for (const text of ["What changed this week?", "Which subject needs the most help?", "What tests are coming up?"]) {
+    if (out.length >= 4) break;
+    add(text);
+  }
+  return out.slice(0, 5);
+}
+
+// The empty chat: say what Ask can do, so nobody faces a blank box.
+function chatWelcome(d) {
+  const name = firstName(d);
+  return el("div", { class: "chat-welcome" }, [
+    el("span", { class: "brand-mark", "aria-hidden": "true" }),
+    el("h3", { text: `Ask anything about ${name}'s schoolwork` }),
+    el("p", { text: `I can look up grades, missing work, upcoming tests and what might help. ` +
+      `I only use ${name}'s school data, and I always say where an answer came from.` }),
+    el("p", { class: "hint", text: "Try one of these, or type your own question below." }),
+  ]);
 }
 
 function chatBubble(m) {
@@ -656,9 +711,12 @@ async function typeOut(node, text) {
   }
 }
 function renderSuggestions(show) {
-  $("chat-suggestions").replaceChildren(...(show ? SUGGESTIONS.map((q) => {
-    const b = el("button", { type: "button", text: q });
-    b.addEventListener("click", () => ask(q));
+  // Shown whenever the chat is idle, leaving out questions already asked.
+  const questions = (state.chatSuggestions || SUGGESTIONS.map((text) => ({ text })))
+    .filter((q) => !state.asked?.has(q.text.trim().toLowerCase()));
+  $("chat-suggestions").replaceChildren(...(show ? questions.map((q) => {
+    const b = el("button", { type: "button", class: "suggestion" }, [q.course ? courseDot(q.course) : null, q.text]);
+    b.addEventListener("click", () => ask(q.text));
     return b;
   }) : []));
 }
@@ -668,6 +726,8 @@ async function ask(question) {
   question = question.trim();
   if (!question) return;
   const log = $("chat-log");
+  log.querySelector(".chat-welcome")?.remove();
+  state.asked?.add(question.toLowerCase());
   log.append(el("div", { class: "msg user", text: question }));
   const thinking = thinkingBubble();
   log.append(thinking); scrollChat();
@@ -689,7 +749,7 @@ async function ask(question) {
       : e.status === 503 && e.message.startsWith("not_configured") ? "AI isn't set up yet, so the assistant can't answer."
       : "Couldn't answer: " + e.message;
     thinking.replaceWith(el("div", { class: "msg error", text }));
-  } finally { $("chat-send").disabled = false; scrollChat(); }
+  } finally { $("chat-send").disabled = false; renderSuggestions(true); scrollChat(); }
 }
 
 // ---------- Settings ----------
