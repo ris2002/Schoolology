@@ -3,7 +3,9 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const PAGES = ["ask", "overview", "alerts", "week", "topics", "papers", "advice", "settings"];
+const PAGES = ["ask", "overview", "alerts", "week", "topics", "papers", "settings"];
+// Pages that moved onto Overview: their old links open Overview at that part.
+const MOVED = { advice: "ov-advice" };
 const DEFAULT_PAGE = "ask";
 const CAUSES = {
   understanding: "Understanding", effort: "Effort", mixed: "Effort and understanding",
@@ -113,6 +115,7 @@ function renderShell() {
 
 function route() {
   const [page, param] = location.hash.replace(/^#\/?/, "").split("/");
+  if (MOVED[page]) return { page: "overview", param: MOVED[page] };
   return { page: PAGES.includes(page) ? page : DEFAULT_PAGE, param: param || null };
 }
 const currentPage = () => route().page;
@@ -124,7 +127,11 @@ function showPage() {
   document.querySelectorAll(".tabs-nav a").forEach((a) => {
     if (a.dataset.page === page) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
-  loadPage(page).then(() => { if (page === "papers") showPaperRoute(); });
+  loadPage(page).then(() => {
+    if (page === "papers") showPaperRoute();
+    const part = page === "overview" && route().param && $(route().param);
+    if (part) { if (part.tagName === "DETAILS") part.open = true; part.scrollIntoView({ block: "start" }); }
+  });
 }
 
 // Each page loads once per child; Sync and actions reload what they change.
@@ -133,8 +140,8 @@ async function loadPage(page, force = false) {
   if (state.loaded[page] && !force) return;
   state.loaded[page] = true;
   try {
-    await ({ overview: loadOverview, alerts: loadAlerts, week: loadWeek, topics: loadTopics, papers: loadPapers,
-             advice: loadAdvice, ask: loadChat, settings: loadSettings })[page]();
+    await ({ overview: loadOverviewPage, alerts: loadAlerts, week: loadWeek, topics: loadTopics, papers: loadPapers,
+             ask: loadChat, settings: loadSettings })[page]();
   } catch (e) {
     state.loaded[page] = false;
     if (e.message !== "signed out") say("Could not load this page: " + e.message, "bad");
@@ -142,8 +149,18 @@ async function loadPage(page, force = false) {
 }
 
 async function dashboard(force = false) {
-  if (!state.dash || force) state.dash = await api(childUrl("/dashboard"));
+  if (!state.dash || force) {
+    if (!state.dashLoading || force) state.dashLoading = api(childUrl("/dashboard")).finally(() => { state.dashLoading = null; });
+    state.dash = await state.dashLoading;
+  }
   return state.dash;
+}
+
+// Overview: the numbers, this week's summary, how to help, and unread alerts. One failing part leaves the rest.
+async function loadOverviewPage() {
+  const parts = await Promise.allSettled([loadOverview(), loadOverviewWeek(), loadAdvice(), loadOverviewAlerts()]);
+  const failed = parts.find((p) => p.status === "rejected");
+  if (failed) throw failed.reason;
 }
 
 // ---------- Overview (code only) ----------
@@ -236,13 +253,30 @@ const ALERT_TITLES = { missing_work: "Missing work", low_test_score: "Low test s
 async function loadAlerts() {
   const alerts = await api(childUrl("/alerts"));
   updateBadge(alerts);
-  const list = $("alert-list");
-  if (!alerts.length) { list.replaceChildren(el("li", { class: "empty", text: "No alerts. New ones appear after a sync." })); return; }
+  renderAlerts($("alert-list"), alerts, "No alerts. New ones appear after a sync.");
+}
+
+async function loadOverviewAlerts() {
+  const alerts = await api(childUrl("/alerts"));
+  updateBadge(alerts);
+  renderAlerts($("ov-alerts"), alerts.filter((a) => !a.read_at), "Nothing new. You're all caught up.");
+}
+
+// After marking one read, refresh both lists so they agree.
+function reloadAlerts() {
+  state.loaded.alerts = false;
+  loadAlerts().catch(() => {});
+  if (state.childId) loadOverviewAlerts().catch(() => {});
+}
+
+function renderAlerts(list, alerts, emptyText) {
+  if (!alerts.length) { list.replaceChildren(el("li", { class: "empty", text: emptyText })); return; }
   list.replaceChildren(...alerts.map((a) => {
     const read = el("button", { class: "small", text: "Mark read" });
     read.addEventListener("click", async () => {
+      read.disabled = true;
       await api(childUrl(`/alerts/${a.id}/read`), { method: "POST" });
-      state.loaded.alerts = false; loadAlerts();
+      reloadAlerts();
     });
     return el("li", { class: a.read_at ? "read" : "" }, [
       el("span", { class: "dot", "aria-hidden": "true" }),
@@ -264,15 +298,36 @@ function updateBadge(alerts) {
 
 // ---------- This week (AI summary) ----------
 
-async function loadWeek() {
-  let summaries = await api(childUrl("/summaries"));
-  let error = null;
-  if (!(summaries[0] && isThisWeek(summaries[0].week_start))) {
-    // A new week with no summary yet: write it now. Without force this never replaces an existing one.
-    $("week-current").replaceChildren(el("div", { class: "ai missing", text: "Writing this week's summary…" }));
-    error = (await api(childUrl("/summaries/generate"), { method: "POST" })).error;
-    summaries = await api(childUrl("/summaries"));
+// The summaries, writing this week's first if it is missing. Shared by Overview and the This week tab,
+// so opening both never asks the AI twice.
+function weekSummaries(onWriting) {
+  if (!state.weekLoading) {
+    state.weekLoading = (async () => {
+      let summaries = await api(childUrl("/summaries"));
+      let error = null;
+      if (!(summaries[0] && isThisWeek(summaries[0].week_start))) {
+        // A new week with no summary yet: write it now. Without force this never replaces an existing one.
+        onWriting();
+        error = (await api(childUrl("/summaries/generate"), { method: "POST" })).error;
+        summaries = await api(childUrl("/summaries"));
+      }
+      return { summaries, error };
+    })().finally(() => { state.weekLoading = null; });
   }
+  return state.weekLoading;
+}
+const writingNote = () => el("div", { class: "ai missing", text: "Writing this week's summary…" });
+
+async function loadOverviewWeek() {
+  const { summaries, error } = await weekSummaries(() => $("ov-week").replaceChildren(writingNote()));
+  const latest = summaries[0];
+  $("ov-week").replaceChildren(latest && isThisWeek(latest.week_start)
+    ? aiBlock(latest.text, null, `Week of ${date(latest.week_start)}`)
+    : aiBlock(null, error, "This week's summary", "write the weekly summary"));
+}
+
+async function loadWeek() {
+  const { summaries, error } = await weekSummaries(() => $("week-current").replaceChildren(writingNote()));
   const [latest, ...older] = summaries;
   const thisWeek = latest && isThisWeek(latest.week_start);
   $("week-current").replaceChildren(thisWeek
@@ -326,6 +381,7 @@ async function loadAdvice() {
   $("cause").textContent = CAUSES[cause.cause];
   $("suggestion").textContent = cause.suggestion;
   $("suggestion").hidden = cause.cause === "on_track";  // nothing to do, so the verdict says it all
+  $("fold-cause").textContent = CAUSES[cause.cause];
   $("cause-explanation").replaceChildren(el("div", { class: "ai missing", text: "Writing an explanation…" }));
   $("cause-courses").replaceChildren(...cause.courses.filter((c) => c.assignments_counted).map((c) => el("tr", {}, [
     courseCell(c.course), el("td", {}, el("span", { class: "chip " + (c.cause === "on_track" ? "ok" : "warn"), text: CAUSES[c.cause] })),
@@ -338,6 +394,8 @@ async function loadAdvice() {
   const [advice, gap] = await Promise.all([api(childUrl("/advice")), api(childUrl("/gap"))]);
   $("cause-explanation").replaceChildren(aiBlock(advice.explanation, advice.ai_error));
 
+  const flagged = gap.courses.filter((g) => g.flagged).length;
+  $("fold-gap").textContent = !gap.courses.length ? "" : flagged ? `${flagged} course${flagged > 1 ? "s" : ""} to look at` : "No big gaps";
   if (!gap.courses.length) {
     $("gap").replaceChildren(el("p", { class: "empty", text: "Needs grades for both everyday work and assessments in a course. Categories that are neither (for example standards-based ones) are left out." }));
     return;
@@ -518,7 +576,7 @@ async function confirmPaper(b) {
   finally { busy(b, false); }
 }
 // Confirmed results change topics, advice and the dashboard, so those reload next time.
-function afterPaperChange() { state.dash = null; ["overview", "topics", "advice"].forEach((k) => { state.loaded[k] = false; }); }
+function afterPaperChange() { state.dash = null; ["overview", "topics"].forEach((k) => { state.loaded[k] = false; }); }
 
 async function uploadPaper(ev) {
   ev.preventDefault();
@@ -545,6 +603,7 @@ async function loadPaperAdvice() {
   const list = $("paper-advice-list");
   try {
     const papers = (await api(childUrl("/papers"))).filter((p) => p.status === "confirmed");
+    $("fold-papers").textContent = papers.length ? `${papers.length} paper${papers.length > 1 ? "s" : ""}` : "";
     if (!papers.length) { list.replaceChildren(el("p", { class: "empty", text: "No confirmed papers yet. Upload one on the Papers page." })); return; }
     list.replaceChildren(...papers.map((p) => el("div", { class: "topic" }, [
       el("div", { class: "topic-head" }, [
@@ -677,6 +736,7 @@ function wire() {
       const r = await api(childUrl("/alerts/refresh"), { method: "POST" });
       say(r.new_alerts ? `${r.new_alerts} new alert${r.new_alerts > 1 ? "s" : ""}.` : "No new alerts.", "ok");
       state.loaded.alerts = false; await loadAlerts();
+      if (state.childId) loadOverviewAlerts().catch(() => {});
     } catch (e) { say(e.message, "bad"); } finally { busy(ev.target, false); }
   });
   $("week-generate").addEventListener("click", async (ev) => {
@@ -685,6 +745,7 @@ function wire() {
       const r = await api(childUrl("/summaries/generate?force=true"), { method: "POST" });
       if (r.error) say(aiNote(r.error, "write the weekly summary"), "warn"); else say("");
       state.loaded.week = false; await loadWeek();
+      if (state.childId) loadOverviewWeek().catch(() => {});
     } catch (e) { say(e.message, "bad"); } finally { busy(ev.target, false); }
   });
   $("topics-label").addEventListener("click", async (ev) => {

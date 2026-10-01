@@ -2,7 +2,7 @@
 .topbar { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--card) 88%, transparent);
           backdrop-filter: saturate(1.4) blur(8px); border-bottom: 1px solid var(--line); }
 .topbar::before { content: ""; display: block; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
-.topbar-inner { max-width: 1040px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.topbar-inner { max-width: 1280px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none; }
 .brand-mark { width: 26px; height: 26px; border-radius: 8px; flex: none;
               background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -10,7 +10,7 @@
 .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .child-name { font-weight: 600; }
 button.small { padding: 6px 12px; font-size: 14px; }
-.tabs-nav { max-width: 1040px; margin: 0 auto; padding: 0 12px; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tabs-nav { max-width: 1280px; margin: 0 auto; padding: 0 12px; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .tabs-nav::-webkit-scrollbar { display: none; }
 .tabs-nav a { padding: 10px 12px; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; font-size: 14.5px;
               transition: color .15s, border-color .15s; }
@@ -94,3 +94,30 @@ details summary { cursor: pointer; }
            border: 4px solid var(--line); border-top-color: var(--accent); animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.5s; } }
+
+/* Overview: main column, with unread alerts in a column on the right that stays in view */
+.ov-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.ov-main, .ov-side { min-width: 0; }
+.ov-side { position: sticky; top: 112px; }
+.side-card { max-height: calc(100vh - 128px); overflow-y: auto; }
+.alert-list.compact li { grid-template-columns: auto 1fr; gap: 4px 10px; padding: 10px 0; }
+.alert-list.compact li > button { grid-column: 2; justify-self: start; }
+.alert-list.compact .alert-text { font-size: 14px; }
+@media (max-width: 980px) {
+  .ov-layout { grid-template-columns: minmax(0, 1fr); }
+  .ov-side { position: static; order: -1; }   /* on a phone, unread alerts come first */
+  .side-card { max-height: none; }
+}
+
+/* Folded sections: closed by default, the header shows the gist */
+.folds > h2 { margin-bottom: 4px; }
+.fold { border-top: 1px solid var(--line); padding: 0; }
+.fold > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 0; font-weight: 600; cursor: pointer; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "▸"; color: var(--accent); transition: transform .15s; }
+.fold[open] > summary::before { transform: rotate(90deg); }
+.fold > summary:hover { color: var(--accent); }
+.fold-note { margin-left: auto; font-weight: 500; font-size: 13px; color: var(--accent); background: var(--accent-soft);
+             padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+.fold-note:empty { display: none; }
+.fold[open] { padding-bottom: 12px; }

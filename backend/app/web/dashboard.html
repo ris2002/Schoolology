@@ -26,7 +26,6 @@
     <a href="#/week" data-page="week">This week</a>
     <a href="#/topics" data-page="topics">Topics</a>
     <a href="#/papers" data-page="papers">Papers</a>
-    <a href="#/advice" data-page="advice">Advice</a>
     <a href="#/settings" data-page="settings">Settings</a>
   </nav>
 </header>
@@ -46,6 +45,40 @@
       <div class="tile t-late"><span class="hint">Handed in late</span><b id="tile-late">–</b></div>
       <div class="tile t-upcoming"><span class="hint">Due in 7 days</span><b id="tile-upcoming">–</b></div>
     </div>
+
+    <div class="ov-layout">
+    <div class="ov-main">
+
+    <!-- This week's AI summary (earlier weeks stay on the This week tab) -->
+    <section class="card">
+      <div class="row"><h2>This week</h2><a class="hint" href="#/week">Earlier weeks →</a></div>
+      <div id="ov-week"></div>
+    </section>
+
+    <!-- How to help: rules pick the cause and flag gaps, AI explains. Folded so the page stays short. -->
+    <section class="card folds">
+      <h2>How to help</h2>
+      <details class="fold" id="ov-advice">
+        <summary><span>Effort or understanding</span> <span class="fold-note" id="fold-cause"></span></summary>
+        <p class="cause-label" id="cause"></p>
+        <p id="suggestion"></p>
+        <div id="cause-explanation"></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Course</th><th>Looks like</th><th class="num">Missing or late</th><th class="num">Done work avg</th><th class="num">Assessment avg</th><th>Weak topics</th></tr></thead>
+          <tbody id="cause-courses"></tbody>
+        </table></div>
+        <p class="hint">Picked by fixed rules from the numbers above. It is a possible reason, not a diagnosis.</p>
+      </details>
+      <details class="fold" id="ov-gap">
+        <summary><span>Everyday work vs assessments</span> <span class="fold-note" id="fold-gap"></span></summary>
+        <div id="gap"></div>
+      </details>
+      <details class="fold" id="ov-paper-advice">
+        <summary><span>Advice from uploaded papers</span> <span class="fold-note" id="fold-papers"></span></summary>
+        <p class="hint">One entry per assignment, newest first. Each notes when a mistake repeats earlier work.</p>
+        <div id="paper-advice-list"></div>
+      </details>
+    </section>
 
     <section class="card">
       <div class="row"><h2>Courses</h2><span class="hint" id="synced"></span></div>
@@ -91,6 +124,16 @@
         <tbody id="categories"></tbody>
       </table></div>
     </section>
+    </div>
+
+    <!-- Unread alerts stay in view on the right -->
+    <aside class="ov-side">
+      <section class="card side-card">
+        <div class="row"><h2>Unread alerts</h2><a class="hint" href="#/alerts">See all →</a></div>
+        <ul class="alert-list compact" id="ov-alerts"></ul>
+      </section>
+    </aside>
+    </div>
   </section>
 
   <!-- Alerts: rules raise them, AI writes the line -->
@@ -171,30 +214,6 @@
     <section class="card" id="paper-list-card">
       <h2>Uploaded papers</h2>
       <div id="paper-list"></div>
-    </section>
-  </section>
-
-  <!-- Advice: rules pick the cause and flag gaps, AI explains -->
-  <section data-view="advice" hidden>
-    <section class="card">
-      <h2>Effort or understanding</h2>
-      <p class="cause-label" id="cause"></p>
-      <p id="suggestion"></p>
-      <div id="cause-explanation"></div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Course</th><th>Looks like</th><th class="num">Missing or late</th><th class="num">Done work avg</th><th class="num">Assessment avg</th><th>Weak topics</th></tr></thead>
-        <tbody id="cause-courses"></tbody>
-      </table></div>
-      <p class="hint">Picked by fixed rules from the numbers above. It is a possible reason, not a diagnosis.</p>
-    </section>
-    <section class="card">
-      <h2>Everyday work vs assessments</h2>
-      <div id="gap"></div>
-    </section>
-    <section class="card">
-      <h2>Advice from uploaded papers</h2>
-      <p class="hint">One entry per assignment, newest first. Each notes when a mistake repeats earlier work.</p>
-      <div id="paper-advice-list"></div>
     </section>
   </section>
 
