@@ -1,11 +1,12 @@
 """The web app. Run from the backend folder: uvicorn app.main:app --reload"""
 
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -42,14 +43,24 @@ app.include_router(cron.router)
 app.mount("/static", StaticFiles(directory=WEB), name="static")
 
 
+def _page(name: str) -> HTMLResponse:
+    """An HTML page whose /static links carry each file's change time, so browsers fetch
+    new scripts and styles after a deploy instead of mixing them with cached old ones."""
+    html = (WEB / name).read_text()
+    html = re.sub(r'"/static/([\w.-]+)"',
+                  lambda m: f'"/static/{m[1]}?v={int((WEB / m[1]).stat().st_mtime)}"' if (WEB / m[1]).is_file() else m[0],
+                  html)
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/", include_in_schema=False)
 def sign_in_page():
-    return FileResponse(WEB / "login.html")
+    return _page("login.html")
 
 
 @app.get("/dashboard", include_in_schema=False)
 def dashboard_page():
-    return FileResponse(WEB / "dashboard.html")
+    return _page("dashboard.html")
 
 
 @app.get("/health")

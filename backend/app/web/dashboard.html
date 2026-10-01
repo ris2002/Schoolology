@@ -47,13 +47,24 @@
     </div>
 
     <div class="ov-layout">
+
+    <!-- Left: unread alerts. Right: this week's AI summary. Both stay in view while the middle scrolls. -->
+    <aside class="ov-alerts-col">
+      <section class="card side-card">
+        <div class="row"><h2>Unread alerts</h2><a class="hint" href="#/alerts">See all →</a></div>
+        <ul class="alert-list compact" id="ov-alerts"></ul>
+      </section>
+    </aside>
+
+    <aside class="ov-week-col">
+      <section class="card side-card">
+        <div class="row"><h2>This week</h2><a class="hint" href="#/week">Earlier weeks →</a></div>
+        <div id="ov-week"></div>
+      </section>
+    </aside>
+
     <div class="ov-main">
 
-    <!-- This week's AI summary (earlier weeks stay on the This week tab) -->
-    <section class="card">
-      <div class="row"><h2>This week</h2><a class="hint" href="#/week">Earlier weeks →</a></div>
-      <div id="ov-week"></div>
-    </section>
 
     <!-- How to help: rules pick the cause and flag gaps, AI explains. Folded so the page stays short. -->
     <section class="card folds">
@@ -126,13 +137,6 @@
     </section>
     </div>
 
-    <!-- Unread alerts stay in view on the right -->
-    <aside class="ov-side">
-      <section class="card side-card">
-        <div class="row"><h2>Unread alerts</h2><a class="hint" href="#/alerts">See all →</a></div>
-        <ul class="alert-list compact" id="ov-alerts"></ul>
-      </section>
-    </aside>
     </div>
   </section>
 
