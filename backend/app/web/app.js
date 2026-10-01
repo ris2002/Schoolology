@@ -6,7 +6,7 @@ const $ = (id) => document.getElementById(id);
 const PAGES = ["ask", "overview", "alerts", "week", "topics", "papers", "settings"];
 // Pages that moved onto Overview: their old links open Overview at that part.
 const MOVED = { advice: "ov-advice" };
-const DEFAULT_PAGE = "ask";
+const DEFAULT_PAGE = "overview";
 const CAUSES = {
   understanding: "Understanding", effort: "Effort", mixed: "Effort and understanding",
   broad_understanding: "Broad understanding", outside_school: "Something outside school", on_track: "On track",
