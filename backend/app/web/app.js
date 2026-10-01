@@ -625,9 +625,35 @@ async function loadChat() {
 }
 
 function chatBubble(m) {
+  return el("div", { class: "msg " + m.role }, [m.text, sourcesLine(m)]);
+}
+function sourcesLine(m) {
   const sources = (m.sources || []).map((s) => s.tool.replace(/^get_|^list_/, "").replaceAll("_", " "));
-  return el("div", { class: "msg " + m.role }, [m.text,
-    sources.length ? el("span", { class: "sources", text: "Based on: " + [...new Set(sources)].join(", ") }) : null]);
+  return sources.length ? el("span", { class: "sources", text: "Based on: " + [...new Set(sources)].join(", ") }) : null;
+}
+
+// While the agent works: bouncing dots and a status line that moves on as time passes.
+const THINKING_STEPS = ["Looking at the data…", "Checking grades and assignments…", "Writing the answer…"];
+function thinkingBubble() {
+  const label = el("span", { class: "typing-text", text: THINKING_STEPS[0] });
+  const bubble = el("div", { class: "msg assistant typing", role: "status" },
+    [el("span", { class: "dots", "aria-hidden": "true" }, [el("i"), el("i"), el("i")]), label]);
+  let step = 0;
+  bubble.stop = () => clearInterval(timer);
+  const timer = setInterval(() => { if (step < THINKING_STEPS.length - 1) label.textContent = THINKING_STEPS[++step]; }, 2500);
+  return bubble;
+}
+
+// Show the reply a few words at a time, finishing within about two seconds however long it is.
+async function typeOut(node, text) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { node.textContent = text; return; }
+  const words = text.split(/(\s+)/);
+  const delay = Math.min(45, Math.max(10, 1800 / words.length));
+  for (let i = 1; i <= words.length; i++) {
+    node.textContent = words.slice(0, i).join("");
+    if (i % 4 === 0) scrollChat();
+    await new Promise((r) => setTimeout(r, delay));
+  }
 }
 function renderSuggestions(show) {
   $("chat-suggestions").replaceChildren(...(show ? SUGGESTIONS.map((q) => {
@@ -643,14 +669,22 @@ async function ask(question) {
   if (!question) return;
   const log = $("chat-log");
   log.append(el("div", { class: "msg user", text: question }));
-  const thinking = el("div", { class: "msg assistant hint", text: "Looking at the data…" });
+  const thinking = thinkingBubble();
   log.append(thinking); scrollChat();
   renderSuggestions(false);
   $("chat-input").value = ""; $("chat-send").disabled = true;
   try {
     const reply = await api(childUrl("/chat"), { method: "POST", json: { question } });
-    thinking.replaceWith(chatBubble(reply));
+    thinking.stop();
+    const body = el("span");
+    const bubble = el("div", { class: "msg assistant writing" }, body);
+    thinking.replaceWith(bubble);
+    await typeOut(body, reply.text);
+    bubble.classList.remove("writing");
+    const sources = sourcesLine(reply);
+    if (sources) bubble.append(sources);
   } catch (e) {
+    thinking.stop();
     const text = e.status === 501 ? "The assistant isn't switched on yet."
       : e.status === 503 && e.message.startsWith("not_configured") ? "AI isn't set up yet, so the assistant can't answer."
       : "Couldn't answer: " + e.message;

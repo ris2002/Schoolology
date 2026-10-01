@@ -50,6 +50,20 @@ details summary { cursor: pointer; }
 .msg.assistant { align-self: flex-start; background: var(--chip); border-bottom-left-radius: 4px; }
 .msg.error { align-self: flex-start; background: var(--bad-bg); color: var(--bad); }
 .msg .sources { display: block; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+/* Agent thinking: bouncing dots and a status line */
+.msg.typing { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; white-space: normal; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: dot-bounce 1.2s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot-bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-5px); opacity: 1; } }
+/* Reply being written out: a blinking cursor at the end */
+.msg.writing::after { content: "▍"; color: var(--accent); margin-left: 1px; animation: caret-blink 1s steps(2, start) infinite; }
+@keyframes caret-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+  .dots i { animation: none; opacity: .7; }
+  .msg.writing::after { animation: none; }
+}
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chips button { border-radius: 999px; font-size: 13.5px; padding: 6px 12px; }
 .chat-form { display: flex; gap: 8px; }
