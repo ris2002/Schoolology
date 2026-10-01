@@ -1,16 +1,20 @@
 """Feature 7: the chat agent."""
 
+import json
 from dataclasses import dataclass, field
 
-from ..agent_tools import AgentTools
-from ..llm import LLM
-
+from ..agent_tools import AgentTools, ToolError
+from ..llm import LLM, tool_result
+from .prompts import CHAT_AGENT
 
 @dataclass
 class AgentAnswer:
+
     text: str
     # One entry per tool call made, e.g. {"tool": "list_assignments", "arguments": {"status": "missing"}}.
     sources: list[dict] = field(default_factory=list)
+
+
 
 
 def answer(llm: LLM, child_name: str, history: list[dict], question: str, tools: AgentTools) -> AgentAnswer:
@@ -28,4 +32,33 @@ def answer(llm: LLM, child_name: str, history: list[dict], question: str, tools:
     - Say "I don't have that information" when the data does not cover the question.
     - Never calculate new numbers; quote the ones the tools return.
     """
-    raise NotImplementedError
+    conversation_history = list(history)
+    conversation_history.append({"role": "user", "content": question})
+    system = CHAT_AGENT + f"\nThe child's name is {child_name}."
+    max_rounds = 8
+    sources = []
+
+    for turn in range(max_rounds):
+        response = llm.chat(system, conversation_history, tools=tools.definitions, max_tokens=1200)
+        conversation_history.append(response.message)
+
+        if not response.tool_calls:
+            text = response.text.strip()
+            if response.stop == "max_tokens":
+                text += " (The answer was cut short. Try a narrower question.)"
+            return AgentAnswer(text=text, sources=sources)
+
+        for call in response.tool_calls:
+            if call.arguments_error:
+                conversation_history.append(
+                    tool_result(call, f"Arguments were not valid JSON: {call.arguments_error}", is_error=True))
+                continue
+            try:
+                result = tools.run(call.name, call.arguments)
+            except ToolError as e:
+                conversation_history.append(tool_result(call, str(e), is_error=True))
+                continue
+            sources.append({"tool": call.name, "arguments": call.arguments})
+            conversation_history.append(tool_result(call, json.dumps(result)))
+
+    return AgentAnswer(text="I couldn't finish looking that up. Please try asking in a simpler way.", sources=sources)
