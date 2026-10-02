@@ -1,7 +1,8 @@
 """Feature 2: label each lost mark with a short topic."""
 
 from ..llm import LLM
-
+from .prompts import TOPIC_LABELLER
+import json
 
 def label_lost_marks(llm: LLM, marks: list[dict], existing_topics: list[str]) -> dict[int, str]:
     """Return {lost_mark_id: topic} for the marks given.
@@ -20,4 +21,40 @@ def label_lost_marks(llm: LLM, marks: list[dict], existing_topics: list[str]) ->
     - Use structured output (llm.json with a JSON Schema) rather than parsing free text.
     Ids you return that were not asked for are ignored by the caller.
     """
-    raise NotImplementedError
+    n_dict={}
+    s_dict={}
+    for x_dict in marks:
+        n_dict[x_dict['id']]=x_dict
+    schema = {
+    "type": "object",                         
+    "properties": {
+        "labels": {                          
+            "type": "array",                 
+            "items": {                       
+                "type": "object",           
+                "properties": {
+                    "id": {"type": "integer"},   
+                    "topic": {"type": "string"}, 
+                },
+                "required": ["id", "topic"],  
+            },
+        },
+    },
+    "required": ["labels"],                  
+}
+
+    data = {"existing_topics": existing_topics, "marks": marks}
+    content=json.dumps(data)
+    messages=[{'role':'user','content':content}]
+    response = llm.json(TOPIC_LABELLER, content, schema) 
+    for line in response['labels']:
+        if line['id'] in n_dict:
+            s_dict[line['id']]=line['topic']
+        
+    return s_dict
+
+
+    
+
+
+    
