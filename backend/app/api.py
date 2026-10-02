@@ -6,9 +6,9 @@ always returned, even when the AI part is not implemented yet or fails.
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
-from . import analytics, config, llm, services, settings, sync
+from . import analytics, config, llm, own_key, services, settings, sync
 from .analytics import changes, grades
 from .auth import child_for_user, connection_status, current_user
 from .db import all_rows, get_db, one
@@ -46,11 +46,11 @@ def me(user=Depends(current_user), conn=Depends(get_db)):
 
 
 @router.post("/sync")
-def sync_now(user=Depends(current_user), conn=Depends(get_db)):
+def sync_now(request: Request, user=Depends(current_user), conn=Depends(get_db)):
     """Pull fresh data from Schoology, then label topics and raise alerts."""
     if not user["is_demo"]:
         try:
-            sync.sync_user(user["id"])
+            sync.sync_user(user["id"], own_key.client_from_session(request))
         except SchoologyAuthError as e:
             raise HTTPException(401, "Schoology connection expired. Please sign in again.") from e
         except SchoologyError as e:

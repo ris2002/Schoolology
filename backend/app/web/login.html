@@ -54,6 +54,27 @@
     <p id="not-configured" class="hint" hidden>Schoology sign-in is not set up yet: add SCHOOLOGY_CONSUMER_KEY and SCHOOLOGY_CONSUMER_SECRET to .env and restart the server.</p>
   </section>
 
+  <section class="card stack">
+    <h2>Sign in with your own Schoology API key</h2>
+    <p class="hint">Uses the district chosen above. Get your key while signed in to Schoology, at
+      <a id="api-page" href="#" target="_blank" rel="noopener">your district's API page</a>.</p>
+    <form id="own-key-form" method="post" action="/auth/own-key" class="stack">
+      <input type="hidden" name="domain" id="own-key-domain">
+      <div>
+        <label for="consumer-key">Consumer Key</label>
+        <input type="text" id="consumer-key" name="consumer_key" required maxlength="200" autocomplete="off" spellcheck="false">
+      </div>
+      <div>
+        <label for="consumer-secret">Consumer Secret</label>
+        <input type="password" id="consumer-secret" name="consumer_secret" required maxlength="200" autocomplete="off">
+      </div>
+      <p class="hint">Your key stays in this browser only, encrypted, and is never saved on our server.
+        It can read what your Schoology account can see. Your child's grades and assignments are stored
+        to work out averages and alerts. Data updates when you visit or press Sync.</p>
+      <button type="submit" style="width:100%">Sign in with my key</button>
+    </form>
+  </section>
+
   <section id="personal" class="card stack" hidden>
     <h2>Developer sign-in</h2>
     <p class="hint">Signs in directly as the owner of the personal Schoology API key in <code>.env</code>.
@@ -89,6 +110,27 @@ function showOther() {
 }
 $("district").addEventListener("change", showOther);
 
+// The district chosen above, from the list or typed in.
+function chosenDomain() {
+  const choice = $("district").value;
+  return choice === OTHER
+    ? $("domain").value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0]
+    : choice;
+}
+function updateApiLink() {
+  const domain = chosenDomain();
+  $("api-page").href = domain ? `https://${domain}/api` : "#";
+  $("api-page").textContent = domain ? `${domain}/api` : "your district's API page";
+}
+$("district").addEventListener("change", updateApiLink);
+$("domain").addEventListener("input", updateApiLink);
+$("own-key-form").addEventListener("submit", (ev) => {
+  const domain = chosenDomain();
+  if (!domain) { ev.preventDefault(); $("district").focus(); return; }
+  $("own-key-domain").value = domain;
+  store.set("schoology-domain", domain);
+});
+
 fetch("/api/me").then((r) => { if (r.ok) location.replace("/dashboard"); });
 
 fetch("/auth/options").then((r) => r.json()).then((o) => {
@@ -105,6 +147,7 @@ fetch("/auth/options").then((r) => r.json()).then((o) => {
   if (o.districts.some((d) => d.domain === saved)) select.value = saved;
   else if (saved || !o.districts.length) { select.value = OTHER; $("domain").value = saved; }
   showOther();
+  updateApiLink();
 });
 
 $("schoology-form").addEventListener("submit", (ev) => {

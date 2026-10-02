@@ -93,6 +93,18 @@ The button works only for requests made on the same computer, never through a tu
 
 On a server (e.g. Render), sign in at `/admin` first, then open the sign-in page: the button appears for that browser only. Anyone else still gets no button. The key owner's data is then protected by `ADMIN_PASSWORD` alone, so make it long and unique, and turn `SCHOOLOGY_PERSONAL_KEY_SIGN_IN` off when you no longer need it.
 
+### Other parents: sign in with their own personal key
+
+Until the app is approved for a district, other parents can sign in with their own personal key, on the sign-in page under **Sign in with your own Schoology API key**:
+
+1. The parent signs in to Schoology and opens `https://<district>/api` to get a Consumer Key and Secret.
+2. They paste both. The app checks the key with Schoology and syncs their children.
+3. The key is kept only in their session cookie, encrypted with `TOKEN_ENCRYPTION_KEY`. It is never written to the database (`app/own_key.py`).
+
+These parents are stored with no token, so the scheduled sync and emails skip them: their data refreshes when they sign in or press **Sync**. Their child's school data is stored like any parent's. The developer sign-in with the key in `.env` is separate and unchanged.
+
+Not yet confirmed: that a **parent's** personal key can read their child's grades (the calls marked `UNVERIFIED`). It has been tested with a student's own key.
+
 ### What a real account returned (Coppell ISD student, Sept 2026)
 
 - `/users/{uid}/sections` left out 5 active courses that had grades. Sync adds every section that appears in `/users/{uid}/grades`.

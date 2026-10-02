@@ -46,12 +46,15 @@ def is_allowed_domain(domain: str) -> bool:
     return any(fnmatch.fnmatch(domain, pattern) for pattern in config.SCHOOLOGY_ALLOWED_DOMAINS)
 
 
-def _auth(token: str | None = None, secret: str | None = None, callback: str | None = None) -> OAuth1:
-    if not (config.SCHOOLOGY_CONSUMER_KEY and config.SCHOOLOGY_CONSUMER_SECRET):
+def _auth(token: str | None = None, secret: str | None = None, callback: str | None = None,
+          consumer: tuple[str, str] | None = None) -> OAuth1:
+    """Signs requests with the app's key from .env, or with `consumer`: a parent's own personal key."""
+    key, consumer_secret = consumer or (config.SCHOOLOGY_CONSUMER_KEY, config.SCHOOLOGY_CONSUMER_SECRET)
+    if not (key and consumer_secret):
         raise SchoologyError("SCHOOLOGY_CONSUMER_KEY and SCHOOLOGY_CONSUMER_SECRET are not set")
     return OAuth1(
-        config.SCHOOLOGY_CONSUMER_KEY,
-        client_secret=config.SCHOOLOGY_CONSUMER_SECRET,
+        key,
+        client_secret=consumer_secret,
         resource_owner_key=token,
         resource_owner_secret=secret,
         callback_uri=callback,
@@ -95,8 +98,8 @@ def get_access_token(request_token: str, request_secret: str) -> tuple[str, str]
 
 
 class SchoologyClient:
-    def __init__(self, access_token: str, access_secret: str):
-        self._auth = _auth(access_token, access_secret)
+    def __init__(self, access_token: str, access_secret: str, consumer: tuple[str, str] | None = None):
+        self._auth = _auth(access_token, access_secret, consumer=consumer)
 
     def get(self, path: str, **params) -> dict:
         url = f"{config.SCHOOLOGY_API_BASE}{path}"

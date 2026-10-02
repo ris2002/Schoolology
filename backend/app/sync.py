@@ -241,13 +241,16 @@ def sync_child(conn, child: dict, client: SchoologyClient) -> dict:
     return counts
 
 
-def sync_user(user_id: int) -> dict:
-    """Sync every child of one parent. Marks the token invalid if Schoology rejects it."""
+def sync_user(user_id: int, client: SchoologyClient | None = None) -> dict:
+    """Sync every child of one parent. Marks the token invalid if Schoology rejects it.
+
+    `client` is given for parents signed in with their own personal key (kept in their cookie);
+    everyone else uses the token stored for them."""
     with session() as conn:
         user = one(conn, "select * from users where id = %s", (user_id,))
         if user is None or user["is_demo"]:
             return {"skipped": True}
-        client = client_for_user(user)
+        client = client or client_for_user(user)
         try:
             me = client.me()
             sync_children_list(conn, user_id, client, me)
