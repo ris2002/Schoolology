@@ -1,6 +1,8 @@
 """Marked papers: read the pages (vision), then write advice for that assignment."""
 
 from ..llm import LLM
+from .prompts import ASSIGNMENT_ADVICE
+import json
 
 
 def read_marked_paper(llm: LLM, pages: list[bytes], context: dict) -> list[dict]:
@@ -27,6 +29,7 @@ def read_marked_paper(llm: LLM, pages: list[bytes], context: dict) -> list[dict]
     The parent checks and corrects everything before it is saved, and the caller
     cleans the values, so an imperfect read is fine; an invented one is not.
     """
+    
     raise NotImplementedError
 
 
@@ -51,4 +54,9 @@ def write_assignment_advice(llm: LLM, child_name: str, facts: dict) -> str:
     - Stay consistent with subject_verdict; never contradict it.
     - Only use numbers present in facts. Never blame the child. 80-150 words.
     """
+    data={"child_name":child_name,**facts}
+    content=json.dumps(data)
+    messages=[{'role':'user','content':content}]
+    response=llm.chat(ASSIGNMENT_ADVICE,messages)
+    return response.text
     raise NotImplementedError
