@@ -50,9 +50,19 @@ def form(**over):
     return {"domain": "schoology.coppellisd.com", "consumer_key": "k", "consumer_secret": "s", **over}
 
 
-def test_unsupported_district_is_refused(client):
-    r = client.post("/auth/own-key", data=form(domain="evil.example.com"))
-    assert r.status_code == 303 and "district" in r.headers["location"]
+def test_a_malformed_address_is_refused(client):
+    r = client.post("/auth/own-key", data=form(domain="not an address"))
+    assert r.status_code == 303 and "address" in r.headers["location"]
+
+
+def test_any_pasted_district_address_reaches_the_key_check(client, monkeypatch):
+    checked = []
+    def rejected(self):
+        checked.append(True)
+        raise schoology.SchoologyAuthError("401")
+    monkeypatch.setattr(schoology.SchoologyClient, "me", rejected)
+    client.post("/auth/own-key", data=form(domain="schoology.someotherisd.org"))
+    assert checked, "a district outside the dropdown list is still allowed to try its key"
 
 
 def test_rejected_key_goes_back_with_a_message(client, monkeypatch):

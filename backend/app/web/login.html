@@ -56,10 +56,17 @@
 
   <section class="card stack">
     <h2>Sign in with your own Schoology API key</h2>
-    <p class="hint">Uses the district chosen above. Get your key while signed in to Schoology, at
-      <a id="api-page" href="#" target="_blank" rel="noopener">your district's API page</a>.</p>
     <form id="own-key-form" method="post" action="/auth/own-key" class="stack">
       <input type="hidden" name="domain" id="own-key-domain">
+      <div>
+        <label for="own-key-address">Your Schoology address</label>
+        <input type="text" id="own-key-address" placeholder="https://yourdistrict.schoology.com" required
+               autocomplete="url" spellcheck="false" inputmode="url">
+        <p class="hint">Sign in to Schoology, then copy the address from your browser's address bar and paste it here.
+          Any Schoology page works.</p>
+      </div>
+      <p class="hint">Then get your key at <a id="api-page" href="#" target="_blank" rel="noopener">your Schoology API page</a>,
+        while still signed in.</p>
       <div>
         <label for="consumer-key">Consumer Key</label>
         <input type="text" id="consumer-key" name="consumer_key" required maxlength="200" autocomplete="off" spellcheck="false">
@@ -110,25 +117,27 @@ function showOther() {
 }
 $("district").addEventListener("change", showOther);
 
-// The district chosen above, from the list or typed in.
-function chosenDomain() {
-  const choice = $("district").value;
-  return choice === OTHER
-    ? $("domain").value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0]
-    : choice;
+// The pasted Schoology address, reduced to its host: "https://x.schoology.com/home" -> "x.schoology.com".
+function pastedDomain() {
+  const text = $("own-key-address").value.trim();
+  if (!text) return "";
+  try {
+    const host = new URL(/^https?:\/\//i.test(text) ? text : "https://" + text).hostname.toLowerCase();
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : "";
+  } catch { return ""; }
 }
 function updateApiLink() {
-  const domain = chosenDomain();
+  const domain = pastedDomain();
   $("api-page").href = domain ? `https://${domain}/api` : "#";
-  $("api-page").textContent = domain ? `${domain}/api` : "your district's API page";
+  $("api-page").textContent = domain ? `${domain}/api` : "your Schoology API page";
+  $("own-key-address").setCustomValidity($("own-key-address").value.trim() && !domain ? "Paste your Schoology web address, e.g. https://yourdistrict.schoology.com" : "");
 }
-$("district").addEventListener("change", updateApiLink);
-$("domain").addEventListener("input", updateApiLink);
+$("own-key-address").addEventListener("input", updateApiLink);
 $("own-key-form").addEventListener("submit", (ev) => {
-  const domain = chosenDomain();
-  if (!domain) { ev.preventDefault(); $("district").focus(); return; }
+  const domain = pastedDomain();
+  if (!domain) { ev.preventDefault(); $("own-key-address").reportValidity(); return; }
   $("own-key-domain").value = domain;
-  store.set("schoology-domain", domain);
+  store.set("own-key-domain", domain);
 });
 
 fetch("/api/me").then((r) => { if (r.ok) location.replace("/dashboard"); });
@@ -147,6 +156,7 @@ fetch("/auth/options").then((r) => r.json()).then((o) => {
   if (o.districts.some((d) => d.domain === saved)) select.value = saved;
   else if (saved || !o.districts.length) { select.value = OTHER; $("domain").value = saved; }
   showOther();
+  if (!$("own-key-address").value) $("own-key-address").value = store.get("own-key-domain") || "";
   updateApiLink();
 });
 
