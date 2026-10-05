@@ -12,6 +12,7 @@ The developer sign-in with the key in .env (auth.py) is separate and unchanged.
 """
 
 import json
+import re
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -22,6 +23,9 @@ from .db import get_db, one
 
 router = APIRouter()
 SESSION_KEY = "own_key"
+# The parent pastes their own Schoology address. It only sets the link to their key page and is
+# remembered as their district; the key itself is always checked against Schoology's API.
+HOST = re.compile(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+")
 
 
 def client_from_session(request: Request) -> schoology.SchoologyClient | None:
@@ -41,8 +45,8 @@ def client_from_session(request: Request) -> schoology.SchoologyClient | None:
 def own_key_sign_in(request: Request, domain: str = Form(...), consumer_key: str = Form(...),
                     consumer_secret: str = Form(...), conn=Depends(get_db)):
     domain, consumer_key, consumer_secret = domain.strip().lower(), consumer_key.strip(), consumer_secret.strip()
-    if not schoology.is_allowed_domain(domain):
-        return back_to_sign_in("That district isn't supported.")
+    if not HOST.fullmatch(domain) or len(domain) > 200:
+        return back_to_sign_in("Paste your Schoology web address, e.g. https://yourdistrict.schoology.com")
     if not (0 < len(consumer_key) <= 200 and 0 < len(consumer_secret) <= 200):
         return back_to_sign_in("Enter both the Consumer Key and the Consumer Secret.")
 
