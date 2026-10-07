@@ -1,8 +1,32 @@
 """Marked papers: read the pages (vision), then write advice for that assignment."""
 
-from ..llm import LLM
-from .prompts import ASSIGNMENT_ADVICE
 import json
+
+from ..llm import LLM, LLMBadOutput, image_part, text_part
+from .prompts import ASSIGNMENT_ADVICE, PAPER_READER
+
+# Every field may be missing on the paper, so each one also allows null. All are required, so the
+# model always sends every key (null when it can't read it) instead of leaving keys out.
+_TEXT = {"type": ["string", "null"]}
+_MARK = {"type": ["number", "null"]}
+QUESTIONS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"label": _TEXT, "question": _TEXT, "student_answer": _TEXT,
+                               "teacher_comment": _TEXT, "points_earned": _MARK, "points_possible": _MARK},
+                "required": ["label", "question", "student_answer", "teacher_comment",
+                             "points_earned", "points_possible"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["questions"],
+    "additionalProperties": False,
+}
 
 
 def read_marked_paper(llm: LLM, pages: list[bytes], context: dict) -> list[dict]:
@@ -30,7 +54,19 @@ def read_marked_paper(llm: LLM, pages: list[bytes], context: dict) -> list[dict]
     cleans the values, so an imperfect read is fine; an invented one is not.
     """
     
-    raise NotImplementedError
+    # One user message: what the paper is, then every page as an image, in order.
+    intro = "Read this marked paper.\n" + json.dumps(context)
+    content = [text_part(intro), *[image_part(page) for page in pages]]
+    response = llm.chat(PAPER_READER, [{"role": "user", "content": content}], json_schema=QUESTIONS_SCHEMA)
+    if response.stop == "max_tokens":
+        raise LLMBadOutput("The paper was too long to read in one go. Try fewer pages.")
+    try:
+        data = json.loads(response.text)
+    except json.JSONDecodeError as e:
+        raise LLMBadOutput("The paper could not be read. Please try again.") from e
+    questions = data.get("questions") if isinstance(data, dict) else None
+    return questions if isinstance(questions, list) else []
+
 
 
 def write_assignment_advice(llm: LLM, child_name: str, facts: dict) -> str:
