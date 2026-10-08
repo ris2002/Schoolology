@@ -798,7 +798,20 @@ function blockApp(on) {
   document.body.setAttribute("aria-busy", on ? "true" : "false");
 }
 
+// Data older than this is synced automatically when the app is opened or comes back into view,
+// so nobody has to press Sync. Sign-in is kept; nothing else changes.
+const SYNC_AFTER_HOURS = 6;
+function needsSync() {
+  const me = state.me;
+  if (!me || me.user.is_demo || me.schoology.state === "reconnect") return false;
+  if (!me.children.length) return true;
+  const oldest = Math.min(...me.children.map((c) => (c.last_synced_at ? new Date(c.last_synced_at).getTime() : 0)));
+  return Date.now() - oldest > SYNC_AFTER_HOURS * 60 * 60 * 1000;
+}
+
 async function syncNow() {
+  if (state.syncing) return;
+  state.syncing = true;
   const b = $("sync"); busy(b, true, "Syncing…"); say("");
   blockApp(true);
   try {
@@ -808,8 +821,9 @@ async function syncNow() {
     resetChildPages(); renderShell(); showPage();
     api(childUrl("/alerts")).then(updateBadge).catch(() => {});
   } catch (e) {
-    say("Sync failed: " + e.message, "bad");
-  } finally { blockApp(false); busy(b, false); }
+    showPage();   // still show the data from the last sync (this clears messages, so say it after)
+    say("Couldn't get the latest grades: " + e.message + ". Showing the last synced data.", "bad");
+  } finally { blockApp(false); busy(b, false); state.syncing = false; }
 }
 
 function wire() {
@@ -865,13 +879,15 @@ async function start() {
   state.me = await api("/api/me");
   state.childId = state.me.children[0]?.id ?? null;
   renderShell();
-  const neverSynced = !state.me.user.is_demo && state.me.schoology.state !== "reconnect"
-    && (!state.me.children.length || state.me.children.some((c) => !c.last_synced_at));
-  if (neverSynced) await syncNow();
+  if (needsSync()) await syncNow();
   else {
     showPage();
     if (state.childId) api(childUrl("/alerts")).then(updateBadge).catch(() => {});
   }
+  // A tab left open (say overnight) syncs when the parent comes back to it.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && needsSync()) syncNow();
+  });
 }
 
 start().catch((e) => { if (e.message !== "signed out") say(e.message, "bad"); });
