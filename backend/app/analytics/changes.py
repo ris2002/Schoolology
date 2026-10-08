@@ -88,6 +88,11 @@ def weekly_changes(data: ChildData, overview: dict, weak: dict, now: datetime) -
             if a["marked_missing"] and in_week(a["graded_at"] or a["due_at"])
         ],
         "still_missing_count": len(overview["missing"]),
+        "new_late": [
+            grades.assignment_ref(data, a, now) for a in data.assignments
+            if a["late"] and not a["marked_missing"] and in_week(a["due_at"])
+        ],
+        "late_count": len(overview["late"]),
         "tests_graded": [
             grades.assignment_ref(data, a, now) for a in data.assignments
             if data.kind(a) == "test" and a["score"] is not None and in_week(a["graded_at"])

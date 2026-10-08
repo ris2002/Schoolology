@@ -37,10 +37,12 @@ def label_lost_marks(llm: LLM, marks: list[dict], existing_topics: list[str]) ->
                     "topic": {"type": "string"}, 
                 },
                 "required": ["id", "topic"],  
+                "additionalProperties": False,
             },
         },
     },
     "required": ["labels"],                  
+    "additionalProperties": False,
 }
 
     data = {"existing_topics": existing_topics, "marks": marks}

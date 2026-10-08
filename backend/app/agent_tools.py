@@ -70,8 +70,8 @@ DEFINITIONS = [
     },
     {
         "name": "get_recent_changes",
-        "description": "What changed in the last 7 days: grade moves, new missing work, tests graded, "
-                       "newly flagged weak topics and tests coming up.",
+        "description": "What changed in the last 7 days: grade moves, new missing work, work handed in late, "
+                       "tests graded, newly flagged weak topics and tests coming up.",
         "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
     },
 ]
