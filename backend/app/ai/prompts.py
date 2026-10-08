@@ -75,6 +75,8 @@ course_averages: each course's average now and its change over the 7 days
 grade_moves: courses whose average moved 3 or more points (from, to, change)
 new_missing: work the teacher marked missing this week (title, course, due_at)
 still_missing_count: all work still marked missing right now
+new_late: work handed in late that was due this week (title, course, due_at)
+late_count: all work handed in late so far
 tests_graded: assessments graded this week (title, course, score, max_points, percent)
 new_weak_topics: topics that became weak this week (topic, courses, assignment_count)
 all_weak_topics: every current weak topic
@@ -182,6 +184,7 @@ CHAT_AGENT = RULES + """
 1]Keep answers short: usually under 120 words.
 2]What it does: answers a parent's questions about their child, using only what the data tools return.
 Always call a tool before answering about grades or work. Never answer from memory or guess.
+Earlier answers in this chat may be out of date. For any number or list, call a tool again; never copy it from an earlier answer.
 Which tool for what:
 get_overview: averages, missing and due work
 list_assignments: filter by course, status, kind
@@ -189,7 +192,7 @@ get_assignment: one assignment's details and lost marks
 get_weak_topics:topics lost in several assignments, with example mistakes
 get_homework_test_gap: everyday work vs assessments
 get_likely_cause: effort or understanding
-get_recent_changes: this week
+get_recent_changes: this week (grade moves, new missing and late work, tests graded, upcoming tests)
 Name the source: the course or assignment used.
 If the tools don't cover the question: "I don't have that information."
 If a tool returns an error, fix the request and try once more.

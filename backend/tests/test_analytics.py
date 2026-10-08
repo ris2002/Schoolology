@@ -184,10 +184,14 @@ def test_weekly_changes_only_include_the_last_seven_days():
     test = category(c["id"], "test")
     this_week = assignment(c["id"], test["id"], 70, days_ago=2, title="Quiz 5")
     last_month = assignment(c["id"], test["id"], 90, days_ago=30, title="Quiz 1")
-    data = ChildData([c], [test], [this_week, last_month])
+    late_now = assignment(c["id"], test["id"], None, days_ago=1, title="Lab 6", late=True)
+    late_before = assignment(c["id"], test["id"], None, days_ago=20, title="Lab 2", late=True)
+    data = ChildData([c], [test], [this_week, last_month, late_now, late_before])
     facts = analytics.compute(data, NOW)
     week = changes.weekly_changes(data, facts.overview, facts.weak, NOW)
     assert [t["title"] for t in week["tests_graded"]] == ["Quiz 5"]
+    assert [a["title"] for a in week["new_late"]] == ["Lab 6"], "only late work due this week"
+    assert week["late_count"] == 2
     assert week["grade_moves"][0]["change"] == -10.0
     assert analytics.jsonable(week)["period"]["to"] == NOW.isoformat()
 
