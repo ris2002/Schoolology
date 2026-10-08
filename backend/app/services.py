@@ -9,7 +9,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from psycopg.types.json import Jsonb
@@ -24,6 +24,8 @@ log = logging.getLogger(__name__)
 
 LABEL_BATCH = 40
 CHAT_HISTORY_TURNS = 20
+# Chat messages older than this are sent to the agent marked with their date, so it re-checks old numbers.
+CHAT_FRESH_FOR = timedelta(hours=1)
 
 
 def now() -> datetime:
@@ -186,12 +188,27 @@ def explain_gap(conn, model: llm.LLM, child: dict, gap_row: dict) -> AIResult:
 
 # --- Feature 7: chat ---
 
+def label_history(rows: list[dict], now: datetime) -> list[dict]:
+    """Earlier chat messages for the agent. Ones older than CHAT_FRESH_FOR carry their date, and old
+    answers say they may be out of date, so the agent checks the data again instead of repeating them.
+    Only what the agent reads changes; the parent's chat shows the plain text."""
+    out = []
+    for m in rows:
+        text = m["text"]
+        if m.get("created_at") and now - m["created_at"] > CHAT_FRESH_FOR:
+            when = m["created_at"].astimezone(now.tzinfo).strftime("%b %-d, %-I:%M %p")
+            note = f"answered {when}; may be out of date" if m["role"] == "assistant" else f"asked {when}"
+            text = f"[{note}] {text}"
+        out.append({"role": m["role"], "content": text})
+    return out
+
+
 def chat(conn, model: llm.LLM, child: dict, question: str, facts: analytics.ChildFacts) -> dict:
     history = list(reversed(all_rows(
-        conn, "select role, text from chat_messages where child_id = %s order by id desc limit %s",
+        conn, "select role, text, created_at from chat_messages where child_id = %s order by id desc limit %s",
         (child["id"], CHAT_HISTORY_TURNS),
     )))
-    history = [{"role": m["role"], "content": m["text"]} for m in history]
+    history = label_history(history, now())
     result = agent.answer(model, child["name"], history, question, AgentTools(facts))
     conn.execute("insert into chat_messages (child_id, role, text) values (%s, 'user', %s)", (child["id"], question))
     row = one(
