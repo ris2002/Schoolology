@@ -50,3 +50,33 @@ def update(conn, patch: dict) -> dict:
         (Jsonb(current),),
     )
     return current
+
+
+# --- Payments: an admin switch, and the Stripe Payment Link families pay through ---
+
+PAYMENT_DEFAULTS = {"enabled": False, "link": ""}
+
+
+def get_payments(conn) -> dict:
+    row = one(conn, "select value from app_settings where key = 'payments'")
+    return {**PAYMENT_DEFAULTS, **(row["value"] if row else {})}
+
+
+def update_payments(conn, patch: dict) -> dict:
+    """Turn payments on or off and set the Stripe Payment Link. Raises ValueError on anything invalid."""
+    current = get_payments(conn)
+    if "link" in patch:
+        link = str(patch["link"] or "").strip()
+        if link and not (link.startswith("https://buy.stripe.com/") or link.startswith("https://checkout.stripe.com/")):
+            raise ValueError("The payment link must be a Stripe Payment Link (https://buy.stripe.com/...)")
+        current["link"] = link
+    if "enabled" in patch:
+        current["enabled"] = bool(patch["enabled"])
+    if current["enabled"] and not current["link"]:
+        raise ValueError("Add the Stripe Payment Link before turning payments on")
+    conn.execute(
+        """insert into app_settings (key, value, updated_at) values ('payments', %s, now())
+           on conflict (key) do update set value = excluded.value, updated_at = now()""",
+        (Jsonb(current),),
+    )
+    return current

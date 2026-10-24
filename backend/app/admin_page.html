@@ -92,6 +92,21 @@
     </section>
 
     <section class="card">
+      <h2>Payments</h2>
+      <p class="hint">When on, families pay through your Stripe Payment Link after registering, and WhatsApp
+        answers only after Stripe confirms the payment. Off: registration is free.</p>
+      <div class="field row">
+        <div><div>Ask families to pay</div><div class="hint" id="paid-count"></div></div>
+        <label class="switch"><input type="checkbox" id="pay-enabled" aria-label="Ask families to pay"><span class="slider"></span></label>
+      </div>
+      <div class="field"><div class="hint">Stripe Payment Link</div>
+        <input type="text" id="pay-link" placeholder="https://buy.stripe.com/..." aria-label="Stripe Payment Link"></div>
+      <div class="field status" id="pay-webhook"></div>
+      <div class="actions"><button class="primary" id="pay-save">Save payments</button></div>
+      <div id="pay-message" class="status"></div>
+    </section>
+
+    <section class="card">
       <h2>Usage</h2>
       <div class="stats" id="stats"></div>
     </section>
@@ -164,11 +179,21 @@ async function loadStats() {
   $("stats").replaceChildren(...items.map(([k, v]) => el("div", { class: "stat" }, [el("b", { text: String(v) }), el("span", { class: "hint", text: k })])));
 }
 
+async function loadPayments() {
+  const p = await api("/admin/api/payments");
+  $("pay-enabled").checked = p.enabled;
+  $("pay-link").value = p.link;
+  $("paid-count").textContent = p.paid_families + " families have paid";
+  $("pay-webhook").textContent = p.webhook_secret_set ? "Stripe webhook secret is set"
+    : "STRIPE_WEBHOOK_SECRET missing in .env: payments can't be confirmed";
+  $("pay-webhook").className = "field status " + (p.webhook_secret_set ? "ok" : "bad");
+}
+
 async function load() {
   try {
     state = await api("/admin/api/settings");
     $("login").hidden = true; $("panel").hidden = false;
-    render(); loadStats();
+    render(); loadStats(); loadPayments();
   } catch (e) {
     if (e.status === 401) { $("panel").hidden = true; $("login").hidden = false; } else { say(e.message, false); }
   }
@@ -192,6 +217,14 @@ $("test").addEventListener("click", async () => {
     const r = await api("/admin/api/test", { method: "POST" });
     say(r.ok ? `${NAMES[r.provider]} · ${r.model} replied "${r.reply}" in ${r.seconds}s` : `${NAMES[r.provider]} · ${r.model}: ${r.error}`, r.ok);
   } catch (e) { say(e.message, false); } finally { button.disabled = false; }
+});
+$("pay-save").addEventListener("click", async () => {
+  const m = $("pay-message");
+  try {
+    await api("/admin/api/payments", { method: "PUT",
+      body: JSON.stringify({ enabled: $("pay-enabled").checked, link: $("pay-link").value }) });
+    await loadPayments(); m.textContent = "Saved."; m.className = "status ok";
+  } catch (e) { m.textContent = e.message; m.className = "status bad"; }
 });
 $("logout").addEventListener("click", async () => { await api("/admin/logout", { method: "POST" }); load(); });
 load();

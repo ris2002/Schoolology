@@ -76,7 +76,7 @@ async function api(path, options = {}) {
     delete init.json;
   }
   const r = await fetch(path, init);
-  if (r.status === 401 && path === "/api/me") { location.replace("/"); throw new Error("signed out"); }
+  if (r.status === 401 && path === "/api/me") { location.replace("/login"); throw new Error("signed out"); }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(body.detail || r.statusText), { status: r.status });
   return body;
@@ -830,7 +830,7 @@ function wire() {
   window.addEventListener("hashchange", showPage);
   $("child-picker").addEventListener("change", (e) => { state.childId = Number(e.target.value); resetChildPages(); renderShell(); showPage(); });
   $("sync").addEventListener("click", syncNow);
-  $("logout").addEventListener("click", async () => { await fetch("/auth/logout", { method: "POST" }); location.replace("/"); });
+  $("logout").addEventListener("click", async () => { await fetch("/auth/logout", { method: "POST" }); location.replace("/login"); });
   $("show-empty-courses").addEventListener("change", renderCourses);
   $("filter-course").addEventListener("change", renderAssignments);
   $("filter-status").addEventListener("change", renderAssignments);

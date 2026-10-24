@@ -114,6 +114,31 @@ Not yet confirmed: that a **parent's** personal key can read their child's grade
 
 > **Before real parents can sign in:** register a developer app in the Schoology App Center and get it approved for the district. Since June 2025, only approved apps can read another user's data, which is what a parent reading their child's grades needs. The Schoology calls marked `UNVERIFIED` in `schoology.py` and `sync.py` still need testing with a real parent account.
 
+## WhatsApp
+
+Families use Parent Insight mainly in WhatsApp; the website is for registering, the full overview, and deleting data.
+
+- **`/`** is the main page. **Try the test version** opens **`/register`**: WhatsApp number, the child's Schoology address, the child's personal key and consent. The key is checked with Schoology, then stored encrypted (`own_key_enc`) so the server can sync and send updates.
+- The page then shows a **JOIN code**. Sending `JOIN 123456` from that number activates it: proof the number is theirs, and their opt-in.
+- In WhatsApp: questions go to the agent; `HELP`, `STOP` / `START` (pause or resume updates), `DELETE` then `DELETE YES` (remove everything).
+- **`/delete`**: enter the number, get a code on WhatsApp, enter it, and the account and all its data are deleted (every table cascades from `users`).
+- Scheduled jobs send new alerts and the weekly summary on WhatsApp, once each, to active families.
+- The old sign-in page is now **`/login`**.
+
+Meta setup: create a WhatsApp app on the Meta developer site, set the webhook to `https://<PUBLIC_URL>/whatsapp/webhook` with your `WHATSAPP_VERIFY_TOKEN`, subscribe to `messages`, then set in `.env`:
+
+| Setting | Where it comes from |
+|---|---|
+| `WHATSAPP_TOKEN` | Meta app → WhatsApp → API setup (a permanent system-user token for production) |
+| `WHATSAPP_PHONE_NUMBER_ID` | the same page: the sending number's ID |
+| `WHATSAPP_VERIFY_TOKEN` | any secret you choose, also entered in Meta's webhook setup |
+| `WHATSAPP_APP_SECRET` | Meta app → Settings → Basic → App secret (checks webhook signatures) |
+| `WHATSAPP_NUMBER` | the bot's number, e.g. `15551234567`, for the "Open WhatsApp" link |
+
+Until `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` are set, outgoing messages are written to the log instead of sent. Meta only allows free-form messages within 24 hours of a family's last message; alerts, weekly summaries and delete codes sent at other times need message templates approved by Meta.
+
+**Payments** (admin panel → Payments): turn on, paste a Stripe Payment Link, and set `STRIPE_WEBHOOK_SECRET` from a Stripe webhook endpoint at `https://<PUBLIC_URL>/stripe/webhook` sending `checkout.session.completed`. Families get the link (tagged with their account) after registering, and the bot answers only once Stripe confirms the payment.
+
 ## AI providers and the admin panel
 
 Open `/admin` and sign in with `ADMIN_PASSWORD`.

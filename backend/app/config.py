@@ -70,6 +70,18 @@ DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
 }
 
+# WhatsApp (Meta WhatsApp Business Platform, Cloud API). Until these are set, outgoing messages
+# are written to the log instead of sent, so everything else can be built and tested.
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")                  # system user access token
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")  # the sending number's id (not the number)
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "")    # any secret you choose; entered in Meta's webhook setup
+WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "")        # the Meta app secret, to check webhook signatures
+WHATSAPP_NUMBER = os.getenv("WHATSAPP_NUMBER", "")                # the bot's number in international form, e.g. 15551234567
+WHATSAPP_API_VERSION = os.getenv("WHATSAPP_API_VERSION", "v21.0")  # Graph API version; update when Meta retires it
+
+# Stripe: verifies the payment confirmations Stripe sends to /stripe/webhook
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
 # Optional email delivery for weekly summaries and alerts
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))

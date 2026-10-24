@@ -77,6 +77,21 @@ def put_settings(patch: dict = Body(...), conn=Depends(get_db)):
     return get_settings(conn)
 
 
+@router.get("/api/payments", dependencies=[Depends(require_admin)])
+def get_payments(conn=Depends(get_db)):
+    paid = conn.execute("select count(*) as n from users where paid_at is not null").fetchone()["n"]
+    return {**settings.get_payments(conn), "paid_families": paid, "webhook_secret_set": bool(config.STRIPE_WEBHOOK_SECRET)}
+
+
+@router.put("/api/payments", dependencies=[Depends(require_admin)])
+def put_payments(patch: dict = Body(...), conn=Depends(get_db)):
+    try:
+        settings.update_payments(conn, patch)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return get_payments(conn)
+
+
 @router.post("/api/test", dependencies=[Depends(require_admin)])
 def test_model(conn=Depends(get_db)):
     """Send a tiny prompt with the app's key to check the provider, model and key work."""

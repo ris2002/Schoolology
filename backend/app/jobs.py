@@ -9,7 +9,7 @@
 import logging
 import sys
 
-from . import analytics, db, llm, notify, services, sync
+from . import analytics, db, llm, notify, services, subscriptions, sync, whatsapp
 from .db import all_rows, session
 from .schoology import SchoologyError
 
@@ -18,7 +18,7 @@ log = logging.getLogger("jobs")
 
 def _parents(conn) -> list[dict]:
     return all_rows(conn, "select * from users where not is_demo and not token_invalid "
-                          "and access_token_enc is not null order by id")
+                          "and (access_token_enc is not null or own_key_enc is not null) order by id")
 
 
 def _email_new_alerts(conn, user: dict, child: dict) -> int:
@@ -29,6 +29,27 @@ def _email_new_alerts(conn, user: dict, child: dict) -> int:
     body = "\n\n".join(f"- {r['message']}" for r in rows)
     if notify.send_email(user["email"], f"Update about {child['name']}", body):
         conn.execute("update alerts set emailed_at = now() where id = any(%s)", ([r["id"] for r in rows],))
+        return len(rows)
+    return 0
+
+
+def _wants_whatsapp(conn, user: dict) -> bool:
+    """Active on WhatsApp, not paused, and paid up when payments are on."""
+    return (bool(user.get("whatsapp_phone")) and user.get("whatsapp_status") == "active"
+            and not subscriptions.needs_payment(conn, user))
+
+
+def _whatsapp_new_alerts(conn, user: dict, child: dict) -> int:
+    if not _wants_whatsapp(conn, user):
+        return 0
+    rows = all_rows(conn, "select id, message from alerts where child_id = %s and whatsapp_sent_at is null "
+                          "and message is not null order by id", (child["id"],))
+    if not rows:
+        return 0
+    first = child["name"].split()[0]
+    text = f"New for {first}:\n\n" + "\n\n".join(f"• {r['message']}" for r in rows)
+    if whatsapp.send_text(user["whatsapp_phone"], text):
+        conn.execute("update alerts set whatsapp_sent_at = now() where id = any(%s)", ([r["id"] for r in rows],))
         return len(rows)
     return 0
 
@@ -47,7 +68,8 @@ def run_sync() -> None:
             for child in all_rows(conn, "select * from children where user_id = %s", (user_id,)):
                 result = services.refresh_child(conn, user, child)
                 emailed = _email_new_alerts(conn, user, child)
-                log.info("child %s: %s, emailed %s alerts", child["id"], result, emailed)
+                sent = _whatsapp_new_alerts(conn, user, child)
+                log.info("child %s: %s, emailed %s alerts, %s on WhatsApp", child["id"], result, emailed, sent)
 
 
 def run_weekly() -> None:
@@ -66,9 +88,13 @@ def run_weekly() -> None:
                 s = result["summary"]
                 if result["error"]:
                     log.warning("Summary failed for child %s: %s", child["id"], result["error"])
-                elif s and not s["emailed_at"] and notify.send_email(
+                    continue
+                if s and not s["emailed_at"] and notify.send_email(
                         user["email"], f"{child['name']}'s week", s["text"]):
                     conn.execute("update summaries set emailed_at = now() where id = %s", (s["id"],))
+                if s and not s.get("whatsapp_sent_at") and _wants_whatsapp(conn, user) and whatsapp.send_text(
+                        user["whatsapp_phone"], f"{child['name'].split()[0]}'s week\n\n{s['text']}"):
+                    conn.execute("update summaries set whatsapp_sent_at = now() where id = %s", (s["id"],))
 
 
 def cleanup_demo() -> None:
