@@ -4,6 +4,7 @@ Field names follow the Schoology REST API v1 reference (user, user grades,
 grading categories, assignment, submissions).
 """
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -24,6 +25,10 @@ LATE_CHECK_DAYS = 30
 
 
 def client_for_user(user: dict) -> SchoologyClient:
+    # A family registered for WhatsApp: their child's personal key, stored encrypted with consent.
+    if user.get("own_key_enc"):
+        key = json.loads(crypto.decrypt(user["own_key_enc"]))
+        return SchoologyClient("", "", consumer=(key["key"], key["secret"]))
     if user.get("access_token_enc") is None:
         raise SchoologyAuthError("This account has no Schoology connection")
     return SchoologyClient(crypto.decrypt(user["access_token_enc"]), crypto.decrypt(user["access_secret_enc"]))

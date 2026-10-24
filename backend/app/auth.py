@@ -39,6 +39,8 @@ def connection_status(user: dict) -> dict:
         return {"state": "demo"}
     if user["token_invalid"] or not user["token_issued_at"]:
         return {"state": "reconnect", "reason": "Schoology no longer accepts this connection"}
+    if user.get("own_key_enc"):
+        return {"state": "ok"}   # a personal key has no 90-day limit; it works until it is turned off
     expires_at = user["token_issued_at"] + timedelta(days=config.SCHOOLOGY_TOKEN_DAYS)
     now = datetime.now(timezone.utc)
     if now >= expires_at:
@@ -50,7 +52,7 @@ def connection_status(user: dict) -> dict:
 
 def back_to_sign_in(error: str) -> RedirectResponse:
     """Browser sign-in errors return to the sign-in page, which shows the message."""
-    return RedirectResponse(f"/?{urlencode({'error': error})}", status_code=303)
+    return RedirectResponse(f"/login?{urlencode({'error': error})}", status_code=303)
 
 
 @router.get("/auth/options")

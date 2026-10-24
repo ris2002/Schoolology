@@ -70,5 +70,5 @@ def test_rejected_key_goes_back_with_a_message(client, monkeypatch):
         raise schoology.SchoologyAuthError("401")
     monkeypatch.setattr(schoology.SchoologyClient, "me", rejected)
     r = client.post("/auth/own-key", data=form())
-    assert r.status_code == 303 and r.headers["location"].startswith("/?error=")
+    assert r.status_code == 303 and r.headers["location"].startswith("/login?error=")
     assert "own_key" not in r.cookies.get("pia_session", "")

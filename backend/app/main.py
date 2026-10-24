@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import admin, ai_keys, api, auth, config, cron, db, own_key, papers
+from . import admin, ai_keys, api, auth, bot, config, cron, db, own_key, papers, register
 
 logging.basicConfig(level=logging.INFO)
 WEB = Path(__file__).with_name("web")
@@ -41,6 +41,8 @@ app.include_router(admin.router)
 app.include_router(papers.router)
 app.include_router(cron.router)
 app.include_router(own_key.router)
+app.include_router(register.router)
+app.include_router(bot.router)
 app.mount("/static", StaticFiles(directory=WEB), name="static")
 
 
@@ -55,6 +57,11 @@ def _page(name: str) -> HTMLResponse:
 
 
 @app.get("/", include_in_schema=False)
+def home_page():
+    return _page("home.html")
+
+
+@app.get("/login", include_in_schema=False)
 def sign_in_page():
     return _page("login.html")
 
